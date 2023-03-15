@@ -16,6 +16,7 @@
 package com.google.cloud.teleport.it.bigquery;
 
 import com.google.cloud.bigquery.InsertAllRequest.RowToInsert;
+import com.google.cloud.bigquery.RangePartitioning;
 import com.google.cloud.bigquery.Schema;
 import com.google.cloud.bigquery.TableId;
 import com.google.cloud.bigquery.TableResult;
@@ -58,6 +59,22 @@ public interface BigQueryResourceManager extends ResourceManager {
   /**
    * Creates a table within the current dataset given a table name and schema.
    *
+   * <p>This table will automatically expire 1 hour after creation if not cleaned up manually or by
+   * calling the {@link BigQueryResourceManager#cleanupAll()} method.
+   *
+   * <p>Note: Implementations may do dataset creation here, if one does not already exist.
+   *
+   * @param tableName The name of the table.
+   * @param schema A schema object that defines the table.
+   * @param partitioning A RangePartitioning object that configures integer range partitioning.
+   * @return The TableId (reference) to the table
+   * @throws BigQueryResourceManagerException if there is an error creating the table in BigQuery.
+   */
+  TableId createTable(String tableName, Schema schema, RangePartitioning partitioning);
+
+  /**
+   * Creates a table within the current dataset given a table name and schema.
+   *
    * <p>This table will automatically expire at the time specified by {@code expirationTime} if not
    * cleaned up manually or by calling the {@link BigQueryResourceManager#cleanupAll()} method.
    *
@@ -65,12 +82,14 @@ public interface BigQueryResourceManager extends ResourceManager {
    *
    * @param tableName The name of the table.
    * @param schema A schema object that defines the table.
+   * @param partitioning A RangePartitioning object that configures integer range partitioning.
    * @param expirationTimeMillis Sets the time when this table expires, in milliseconds since the
    *     epoch.
    * @return The TableId (reference) to the table
    * @throws BigQueryResourceManagerException if there is an error creating the table in BigQuery.
    */
-  TableId createTable(String tableName, Schema schema, Long expirationTimeMillis);
+  TableId createTable(
+      String tableName, Schema schema, RangePartitioning partitioning, Long expirationTimeMillis);
 
   /**
    * Writes a given row into a table. This method requires {@link

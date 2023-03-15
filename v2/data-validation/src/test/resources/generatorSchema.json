@@ -1,0 +1,5 @@
+{
+  "primary_key": "{{uuid()}}",
+  "partition_key": "{{integer(1, 1000)}}",
+  "payload": "{{alphaNumeric(256)}}"
+}

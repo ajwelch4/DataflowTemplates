@@ -27,6 +27,7 @@ import com.google.cloud.bigquery.DatasetInfo;
 import com.google.cloud.bigquery.InsertAllRequest.RowToInsert;
 import com.google.cloud.bigquery.InsertAllResponse;
 import com.google.cloud.bigquery.QueryJobConfiguration;
+import com.google.cloud.bigquery.RangePartitioning;
 import com.google.cloud.bigquery.Schema;
 import com.google.cloud.bigquery.StandardTableDefinition;
 import com.google.cloud.bigquery.Table;
@@ -184,12 +185,18 @@ public final class DefaultBigQueryResourceManager implements BigQueryResourceMan
 
   @Override
   public synchronized TableId createTable(String tableName, Schema schema) {
-    return createTable(tableName, schema, System.currentTimeMillis() + 3600000); // 1h
+    return createTable(tableName, schema, null); // 1h
   }
 
   @Override
   public synchronized TableId createTable(
-      String tableName, Schema schema, Long expirationTimeMillis) {
+      String tableName, Schema schema, RangePartitioning partitioning) {
+    return createTable(tableName, schema, partitioning, System.currentTimeMillis() + 3600000); // 1h
+  }
+
+  @Override
+  public synchronized TableId createTable(
+      String tableName, Schema schema, RangePartitioning partitioning, Long expirationTimeMillis) {
     // Check table ID
     checkValidTableId(tableName);
 
@@ -208,7 +215,12 @@ public final class DefaultBigQueryResourceManager implements BigQueryResourceMan
     try {
       TableId tableId = TableId.of(dataset.getDatasetId().getDataset(), tableName);
       if (bigQuery.getTable(tableId) == null) {
-        TableDefinition tableDefinition = StandardTableDefinition.of(schema);
+        StandardTableDefinition.Builder tableDefinitionBuilder =
+            StandardTableDefinition.newBuilder().setSchema(schema);
+        if (partitioning != null) {
+          tableDefinitionBuilder.setRangePartitioning(partitioning);
+        }
+        TableDefinition tableDefinition = tableDefinitionBuilder.build();
         TableInfo tableInfo =
             TableInfo.newBuilder(tableId, tableDefinition)
                 .setExpirationTime(expirationTimeMillis)
