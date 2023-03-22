@@ -296,7 +296,9 @@ public class DataValidation {
     return DataSourceConfiguration.create(
         "com.simba.googlebigquery.jdbc.Driver",
         "jdbc:bigquery://https://www.googleapis.com/bigquery/v2:443;"
-            + "OAuthType=3;IgnoreTransactions=1;ProjectId="
+            + "OAuthType=3;QueryDialect=SQL;IgnoreTransactions=1;"
+            + "AllowLargeResults=1;LargeResultDataset=_simba_jdbc;"
+            + "ProjectId="
             + connectionConfig.get("project_id")
             + ";");
   }
