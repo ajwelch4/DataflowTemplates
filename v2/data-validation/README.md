@@ -70,7 +70,7 @@ gcloud dataflow flex-template run "data-validation-$(date +%s)" \
   --parameters="targetConnection=my_bq_conn" \
   --parameters="fullyQualifiedTargetTableName=data-validation-project.dataset_id.target_table" \
   --parameters="primaryKeys=primary_key" \
-  --parameters="partitionKey=partition_key" \
+  --parameters="partitionKey=partition_key" \ # Only integers are currently supported.
   --parameters="partitionCount=60" \
   --parameters="resultsStagingGcsLocation=gs://data-validation-project-dataflow-pipeline-data/data" \
   --parameters="fullyQualifiedResultsTableName=data-validation-project.load_test.results" \
@@ -121,6 +121,7 @@ mvn clean verify -pl v2/data-validation -am -fae \
 - Fix `end_time`.
 - Properly quote partition key.
 - Package additional JDBC drivers and account for them in `getDataSourceConfiguration`.
+- Make `partitionKey` and `partitionCount` optional. Default to sequential read, parallel join/validate/write.
 - Filters.
 - Hash column list.
 - Error handling.
