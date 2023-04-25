@@ -386,6 +386,37 @@
         <module>syndeo-template</module>
       </modules>
     </profile>
+    <!-- https://stackoverflow.com/a/39562385 -->
+    <profile>
+      <id>skipItMetadataTests</id>
+      <activation>
+        <activeByDefault>false</activeByDefault>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+              <groupId>org.codehaus.mojo</groupId>
+              <artifactId>build-helper-maven-plugin</artifactId>
+              <version>3.3.0</version>
+              <executions>
+                  <execution>
+                      <id>regex-property</id>
+                      <goals>
+                          <goal>regex-property</goal>
+                      </goals>
+                      <configuration>
+                          <name>maven.test.skip</name>
+                          <value>${project.artifactId}</value>
+                          <regex>(metadata)|(it-common)|(it-google-cloud-platform)|(it-jdbc)|(structured-logging)</regex>
+                          <replacement>true</replacement>
+                          <failIfNoMatch>false</failIfNoMatch>
+                      </configuration>
+                  </execution>
+              </executions>
+          </plugin>
+      </plugins>
+      </build>
+    </profile>
   </profiles>
 
   <modules>
