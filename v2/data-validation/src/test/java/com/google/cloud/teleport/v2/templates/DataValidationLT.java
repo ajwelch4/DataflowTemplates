@@ -137,11 +137,20 @@ public class DataValidationLT extends TemplateLoadTestBase {
 
     bigQueryResourceManager.createTable(TARGET_TABLE_NAME, bigQuerySchema, partitioning);
 
+    // Explicitly passing the column list ensures auto-detect is not enabled.
+    // Auto-detect was occasionally detecting our alphanumeric payload as BYTES not STRING. 
+    String bigQueryColumnList = "";
+    for (Field field : bigQuerySchema.getFields()) {
+      bigQueryColumnList += field.getName() + " " + field.getType().name() + ",";
+    }
     bigQueryResourceManager.runQuery(
         "load data into "
             + bigQueryResourceManager.getDatasetId()
             + "."
             + SOURCE_TABLE_NAME
+            + "("
+            + bigQueryColumnList
+            + ")"
             + " from files(format='JSON', uris=['"
             + generatorDataPath
             + "/*'])");
