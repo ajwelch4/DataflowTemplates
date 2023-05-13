@@ -8,10 +8,8 @@ RUN /bin/bash -c 'set -x \
     && apt-get install -y git python3 python3-venv \
     && mkdir -p ~/.ssh \
     && ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts \
-    && git clone https://github.com/ajwelch4/professional-services-data-validator.git \
+    && git clone https://github.com/GoogleCloudPlatform/professional-services-data-validator.git \
     && cd professional-services-data-validator \
-    && git fetch \
-    && git checkout dry-run \
     && python3 -m venv env \
     && source env/bin/activate \
     && python3 -m pip install .'
