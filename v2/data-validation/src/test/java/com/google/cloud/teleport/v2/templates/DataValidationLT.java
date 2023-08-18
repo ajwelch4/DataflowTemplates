@@ -104,12 +104,12 @@ public class DataValidationLT extends TemplateLoadTestBase {
             .setSinkType("GCS")
             .setOutputDirectory(generatorDataPath)
             .setOutputType("JSON")
-            .setWorkerMachineType("n1-standard-1")
+            .setWorkerMachineType("n2-highmem-2")
             .setNumShards("50")
             .setNumWorkers("50")
             .setMaxNumWorkers("100")
             .build();
-    dataGenerator.execute(Duration.ofMinutes(40));
+    dataGenerator.execute(Duration.ofMinutes(60));
 
     bigQueryResourceManager =
         DefaultBigQueryResourceManager.builder(TEST_CLASS_NAME, PROJECT).build();

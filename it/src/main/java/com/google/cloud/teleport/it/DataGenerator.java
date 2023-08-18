@@ -43,7 +43,7 @@ public class DataGenerator {
   private static final String REGION = TestProperties.region();
   private static final Credentials CREDENTIALS = TestProperties.googleCredentials();
   private static final String MESSAGES_GENERATED_METRIC_NAME =
-      "Generate Fake Messages-out0-ElementCount";
+      "Generate Fake Messages/ParMultiDo(MessageGenerator)-out0-ElementCount";
   private static final String MESSAGES_LIMIT = "messagesLimit";
   private final LaunchConfig dataGeneratorOptions;
   private final PipelineLauncher pipelineLauncher;
