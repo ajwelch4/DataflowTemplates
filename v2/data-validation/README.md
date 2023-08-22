@@ -21,16 +21,35 @@ The infrastructure required by this template can be deployed via
 [this](https://github.com/ajwelch4/DataflowTemplatesOps/tree/v2-data-validation/v2/data-validation)
 Terraform repo.
 
+## Build Custom Launcher and Worker Images
+
+```shell
+cd v2/data-validation/docker/launcher \
+    && gcloud builds submit \
+        --tag us-east1-docker.pkg.dev/data-validation-project/data-validation/dataflow/data-validation-launcher:latest . \
+    && cd ../worker \
+    && gcloud builds submit \
+        --tag us-east1-docker.pkg.dev/data-validation-project/data-validation/dataflow/data-validation-worker:latest . \
+    && cd ../../../..
+```
+
+If needed, inspect/debug images:
+
+```shell
+docker pull us-east1-docker.pkg.dev/data-validation-project/data-validation/dataflow/data-validation-launcher:latest
+docker run -it --entrypoint /bin/bash us-east1-docker.pkg.dev/data-validation-project/data-validation/dataflow/data-validation-launcher:latest
+
+docker pull us-east1-docker.pkg.dev/data-validation-project/data-validation/dataflow/data-validation-worker:latest
+docker run -it --entrypoint /bin/bash us-east1-docker.pkg.dev/data-validation-project/data-validation/dataflow/data-validation-worker:latest
+
+```
+
 ## Stage
 
 Adjust the parameters to the commands below according to your own environment
 and run from the root of the repo:
 
 ```shell
-cd v2/data-validation \
-    && docker build -t data-validation:latest . \
-    && cd ../..
-
 mvn clean install -pl plugins/templates-maven-plugin -am
 
 mvn clean package -pl v2/data-validation -am \
@@ -40,17 +59,10 @@ mvn clean package -pl v2/data-validation -am \
     -DprojectId="data-validation-project" \
     -Dregion="us-east1" \
     -Dartifactregion="us-east1" \
-    -DbaseContainerImage="docker://data-validation:latest" \
+    -DbaseContainerImage="us-east1-docker.pkg.dev/data-validation-project/data-validation/dataflow/data-validation-launcher:latest" \
     -DbucketName="data-validation-project-dataflow-flex-template" \
     -DstagePrefix="data-validation" \
     -DtemplateName="Data_Validation"
-```
-
-If needed, inspect/debug template container:
-
-```shell
-docker pull gcr.io/data-validation-project/data-validation/data-validation:latest
-docker run -it --entrypoint /bin/bash gcr.io/data-validation-project/data-validation/data-validation:latest
 ```
 
 ## Execute
@@ -64,14 +76,9 @@ gcloud dataflow flex-template run "data-validation-$(date +%s)" \
   --temp-location="gs://data-validation-project-dataflow-gcp-temp-location/tmp" \
   --additional-experiments="use_runner_v2" \
   --template-file-gcs-location="gs://data-validation-project-dataflow-flex-template/data-validation/flex/Data_Validation" \
-  --parameters="configGcsLocation=gs://data-validation-project-dataflow-pipeline-data/config" \
-  --parameters="sourceConnection=my_bq_conn" \
-  --parameters="fullyQualifiedSourceTableName=data-validation-project.dataset_id.source_table" \
-  --parameters="targetConnection=my_bq_conn" \
-  --parameters="fullyQualifiedTargetTableName=data-validation-project.dataset_id.target_table" \
-  --parameters="primaryKeys=primary_key" \
-  --parameters="partitionKey=partition_key" \ # Only integers are currently supported.
-  --parameters="partitionCount=60" \
+  --parameters="sdkContainerImage=us-east1-docker.pkg.dev/data-validation-project/data-validation/dataflow/data-validation-worker:latest" \
+  --parameters="connectionsGcsLocation=gs://data-validation-project-dataflow-pipeline-data/config/connections" \
+  --parameters="configurationGcsLocationsPattern=gs://data-validation-project-dataflow-pipeline-data/config/**/*.yaml" \
   --parameters="resultsStagingGcsLocation=gs://data-validation-project-dataflow-pipeline-data/data" \
   --parameters="fullyQualifiedResultsTableName=data-validation-project.load_test.results" \
   --worker-machine-type="n2-highmem-2" \
@@ -114,16 +121,9 @@ mvn clean verify -pl v2/data-validation -am -fae \
 
 ## TODO
 
+- Package additional JDBC drivers and account for them in `getDataSourceConfiguration`.
+- Refactor
 - Truncate results table after load tests.
 - Parameterize load tests.
-- Update Dockerfile once [dry-run PR](https://github.com/GoogleCloudPlatform/professional-services-data-validator/pull/778) is merged.
-- Add `validation_name` as pipeline option.
-- Fix `end_time`.
-- Properly quote partition key.
-- Package additional JDBC drivers and account for them in `getDataSourceConfiguration`.
-- Make `partitionKey` and `partitionCount` optional. Default to sequential read, parallel join/validate/write.
-- Filters.
-- Hash column list.
-- Error handling.
 - Unit/integration tests.
 - Comments/docs.
