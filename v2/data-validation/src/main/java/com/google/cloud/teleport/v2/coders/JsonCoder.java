@@ -28,6 +28,7 @@ import org.checkerframework.checker.nullness.qual.UnknownKeyFor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/** JsonCoder. */
 public class JsonCoder<T> extends CustomCoder<T> {
 
   @SuppressWarnings("unused")

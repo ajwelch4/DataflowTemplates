@@ -29,6 +29,7 @@ import org.apache.beam.sdk.values.PCollection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/** DeserializeConnectionConfigurations. */
 public class DeserializeConnectionConfigurations
     extends PTransform<PCollection<ReadableFile>, PCollection<KV<String, JsonNode>>> {
 
@@ -36,41 +37,54 @@ public class DeserializeConnectionConfigurations
   private static final Logger LOG =
       LoggerFactory.getLogger(DeserializeConnectionConfigurations.class);
 
+  private static class DeserializeConnectionConfigurationsFn
+      extends InferableFunction<ReadableFile, KV<String, JsonNode>> {
+
+    private final ObjectMapper objectMapper;
+
+    public DeserializeConnectionConfigurationsFn() {
+      objectMapper = new ObjectMapper();
+    }
+
+    public static DeserializeConnectionConfigurationsFn create() {
+      return new DeserializeConnectionConfigurationsFn();
+    }
+
+    // TODO: Add javadoc explaining logic below.
+    private static String getConnectionFileBasename(ReadableFile file) {
+      return Files.getNameWithoutExtension(file.getMetadata().resourceId().toString())
+          .split("\\.")[0];
+    }
+
+    @Override
+    public KV<String, JsonNode> apply(ReadableFile file) {
+      JsonNode connectionConfiguration = null;
+      try {
+        connectionConfiguration =
+            objectMapper.readValue(file.readFullyAsUTF8String(), JsonNode.class);
+      } catch (JsonProcessingException ex) {
+        throw new RuntimeException(
+            "Error deserializing JSON connection configuration file: "
+                + file.getMetadata().resourceId().toString()
+                + ".",
+            ex);
+      } catch (IOException ex) {
+        throw new RuntimeException(
+            "Error reading JSON connection configuration file: "
+                + file.getMetadata().resourceId().toString()
+                + ".",
+            ex);
+      }
+      return KV.of(getConnectionFileBasename(file), connectionConfiguration);
+    }
+  }
+
   public static DeserializeConnectionConfigurations create() {
     return new DeserializeConnectionConfigurations();
   }
 
   @Override
   public PCollection<KV<String, JsonNode>> expand(PCollection<ReadableFile> files) {
-    return files.apply(
-        MapElements.via(
-            new InferableFunction<ReadableFile, KV<String, JsonNode>>() {
-              @Override
-              public KV<String, JsonNode> apply(ReadableFile file) {
-                ObjectMapper connectionObjectMapper = new ObjectMapper();
-                JsonNode connectionConfiguration = null;
-                try {
-                  connectionConfiguration =
-                      connectionObjectMapper.readValue(
-                          file.readFullyAsUTF8String(), JsonNode.class);
-                } catch (JsonProcessingException ex) {
-                  throw new RuntimeException(
-                      "Error deserializing JSON connection configuration file: "
-                          + file.getMetadata().resourceId().toString()
-                          + ".",
-                      ex);
-                } catch (IOException ex) {
-                  throw new RuntimeException(
-                      "Error reading JSON connection configuration file: "
-                          + file.getMetadata().resourceId().toString()
-                          + ".",
-                      ex);
-                }
-                String connectionName =
-                    Files.getNameWithoutExtension(file.getMetadata().resourceId().toString())
-                        .split("\\.")[0];
-                return KV.of(connectionName, connectionConfiguration);
-              }
-            }));
+    return files.apply(MapElements.via(DeserializeConnectionConfigurationsFn.create()));
   }
 }
