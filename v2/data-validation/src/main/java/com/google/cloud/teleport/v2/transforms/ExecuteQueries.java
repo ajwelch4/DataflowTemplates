@@ -85,6 +85,7 @@ public class ExecuteQueries
       String driverClassName;
       String jdbcUrl;
       String sourceType = connectionConfig.get("source_type").asText();
+      DataSource dataSource;
       switch (sourceType) {
         case "BigQuery":
           driverClassName =
@@ -98,18 +99,37 @@ public class ExecuteQueries
                   + "ProjectId="
                   + connectionConfig.get("project_id").asText()
                   + ";";
+          dataSource =
+                  dataSources.computeIfAbsent(
+                          connectionName,
+                          k ->
+                                  JdbcIO.DataSourceProviderFromDataSourceConfiguration.of(
+                                                  JdbcIO.DataSourceConfiguration.create(driverClassName, jdbcUrl))
+                                          .apply(null));
+          break;
+        case "MySQL":
+          driverClassName =
+                  "com.mysql.cj.jdbc.Driver";
+          // TODO: Make LargeResultDataset a pipeline option
+          jdbcUrl =
+                  "jdbc:mysql://"
+                          +connectionConfig.get("host").asText()
+                          +":"+connectionConfig.get("port").asText()+"/"
+                          +connectionConfig.get("database").asText();
+          dataSource =
+                  dataSources.computeIfAbsent(
+                          connectionName,
+                          k ->
+                                  JdbcIO.DataSourceProviderFromDataSourceConfiguration.of(
+                                                  JdbcIO.DataSourceConfiguration.create(driverClassName, jdbcUrl)
+                                                          .withUsername(connectionConfig.get("user").asText())
+                                                          .withPassword(connectionConfig.get("password").asText()))
+                                          .apply(null));
           break;
         default:
           throw new RuntimeException(
               "Invlaid source_type " + sourceType + " for connection " + connectionName + ".");
       }
-      DataSource dataSource =
-          dataSources.computeIfAbsent(
-              connectionName,
-              k ->
-                  JdbcIO.DataSourceProviderFromDataSourceConfiguration.of(
-                          JdbcIO.DataSourceConfiguration.create(driverClassName, jdbcUrl))
-                      .apply(null));
       return connections.computeIfAbsent(
           connectionName,
           k -> {
