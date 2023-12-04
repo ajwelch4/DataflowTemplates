@@ -35,7 +35,7 @@ import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionView;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
+//import java.sql.Types;
 /** ExecuteQueries. */
 public class ExecuteQueries
     extends PTransform<PCollection<KV<String, JsonNode>>, PCollection<KV<List<String>, String>>> {
@@ -85,7 +85,6 @@ public class ExecuteQueries
       String driverClassName;
       String jdbcUrl;
       String sourceType = connectionConfig.get("source_type").asText();
-      DataSource dataSource;
       switch (sourceType) {
         case "BigQuery":
           driverClassName =
@@ -99,37 +98,40 @@ public class ExecuteQueries
                   + "ProjectId="
                   + connectionConfig.get("project_id").asText()
                   + ";";
-          dataSource =
-                  dataSources.computeIfAbsent(
-                          connectionName,
-                          k ->
-                                  JdbcIO.DataSourceProviderFromDataSourceConfiguration.of(
-                                                  JdbcIO.DataSourceConfiguration.create(driverClassName, jdbcUrl))
-                                          .apply(null));
           break;
         case "MySQL":
           driverClassName =
                   "com.mysql.cj.jdbc.Driver";
-          // TODO: Make LargeResultDataset a pipeline option
           jdbcUrl =
                   "jdbc:mysql://"
                           +connectionConfig.get("host").asText()
                           +":"+connectionConfig.get("port").asText()+"/"
                           +connectionConfig.get("database").asText();
-          dataSource =
-                  dataSources.computeIfAbsent(
-                          connectionName,
-                          k ->
-                                  JdbcIO.DataSourceProviderFromDataSourceConfiguration.of(
-                                                  JdbcIO.DataSourceConfiguration.create(driverClassName, jdbcUrl)
-                                                          .withUsername(connectionConfig.get("user").asText())
-                                                          .withPassword(connectionConfig.get("password").asText()))
-                                          .apply(null));
+          break;
+        case "Spanner":
+          driverClassName =
+                  "nl.topicus.jdbc.CloudSpannerDriver";
+          jdbcUrl =
+                  "jdbc:cloudspanner://localhost;Project="
+                    +connectionConfig.get("project_id").asText()
+                    +";Instance="
+                          +connectionConfig.get("instance_id").asText()
+                    +";Database="
+                    +connectionConfig.get("database_id").asText();
           break;
         default:
           throw new RuntimeException(
               "Invlaid source_type " + sourceType + " for connection " + connectionName + ".");
       }
+      DataSource dataSource =
+              dataSources.computeIfAbsent(
+                      connectionName,
+                      k ->
+                              JdbcIO.DataSourceProviderFromDataSourceConfiguration.of(
+                                              JdbcIO.DataSourceConfiguration.create(driverClassName, jdbcUrl)
+                                                      .withUsername(connectionConfig.has("user") ? connectionConfig.get("user").asText() : null)
+                                                      .withPassword(connectionConfig.has("password") ? connectionConfig.get("password").asText() : null))
+                                      .apply(null));
       return connections.computeIfAbsent(
           connectionName,
           k -> {
@@ -178,6 +180,16 @@ public class ExecuteQueries
                 if (resultSetMetaData.getColumnName(column).equals("hash__all")) {
                   continue;
                 }
+//                switch (resultSetMetaData.getColumnType(column)) {
+//                  case Types.VARCHAR:
+//                    key.add(resultSet.getString(column));
+//                    break;
+//                  case Types.INTEGER:
+//                    key.add(Integer.toString(resultSet.getInt(column)));
+//                    break;
+//                  default:
+//                    Object objectValue = resultSet.getObject(column);
+//                }
                 key.add(resultSet.getString(column));
               }
               out.output(KV.of(key, resultSet.getString("hash__all")));
