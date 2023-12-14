@@ -282,6 +282,74 @@ public class DataValidation {
     return queries;
   }
 
+  private static List<String> getJdbcUrlAndDriver(
+    String configGcsLocation, String connection) throws IOException, JsonProcessingException {
+        ObjectMapper mapper = new ObjectMapper();
+        List<String> jdbcDetails = new ArrayList<>(); 
+
+        Path connectionPath =
+            Paths.get(
+                URI.create(configGcsLocation + "/connections/" + connection + ".connection.json"));
+
+        Map<String, String> connectionConfig =
+            mapper.readValue(Files.readString(connectionPath, StandardCharsets.UTF_8), Map.class);
+
+        String databaseType = connectionConfig.get("source_type");
+        String jdbcUrl = null;
+        String jdbcDriver = null; 
+
+        String host = connectionConfig.get("host");
+        String port = connectionConfig.get("port");
+        String databaseName = connectionConfig.get("database");
+        String projectId = connectionConfig.get("project_id");
+
+        switch (databaseType.toLowerCase()) {
+            case "mysql":
+                jdbcDriver = "com.mysql.jdbc.Driver";
+                jdbcUrl = "jdbc:mysql://" + host + ":" + port + "/" + databaseName;
+                break;
+            case "hive":
+                jdbcDriver = "org.apache.hive.jdbc.HiveDriver";
+                jdbcUrl = "jdbc:hive2://" + host + ":" + port + "/" + databaseName;
+                break;
+            case "oracle":
+                jdbcDriver = "oracle.jdbc.OracleDriver";
+                jdbcUrl = "jdbc:oracle:thin:@" + host + ":" + port + ":" + databaseName;
+                break;
+            case "redshift":
+                jdbcDriver = "com.amazon.redshift.Driver";
+                jdbcUrl = "jdbc:redshift://" + host + ":" + port + "/" + databaseName;
+                break;
+            case "teradata":
+                jdbcDriver = "com.teradata.jdbc.TeraDriver";
+                jdbcUrl = "jdbc:teradata://" + host + "/DATABASE=" + databaseName;
+                break;
+            case "db2":
+                jdbcDriver = "com.ibm.db2.jdbc.app.DB2Driver";
+                jdbcUrl = "jdbc:db2://" + host + ":" + port + "/" + databaseName;
+                break;
+            case "postgresql":
+                jdbcDriver = "org.postgresql.Driver";
+                jdbcUrl = "jdbc:postgresql://" + host + ":" + port + "/" + databaseName;
+                break;
+            case "sqlserver":
+                jdbcDriver = "com.microsoft.sqlserver.jdbc.SQLServerDriver";
+                jdbcUrl = "jdbc:sqlserver://" + host + ":" + port + ";databaseName=" + databaseName;
+                break;
+            case "bigquery":
+                jdbcDriver = "com.simba.googlebigquery.jdbc.Driver";
+                jdbcUrl = "jdbc:bigquery://https://www.googleapis.com/bigquery/v2:443;OAuthType=3;QueryDialect=SQL;IgnoreTransactions=1;AllowLargeResults=1;LargeResultDataset=_simba_jdbc;project_id=" + projectId;
+                break;
+
+            default:
+                throw new IllegalArgumentException("Invalid database type: " + databaseType);
+        }
+        jdbcDetails.add(jdbcDriver);
+        jdbcDetails.add(jdbcUrl);
+
+        return jdbcDetails;
+  }
+
   private static DataSourceConfiguration getDataSourceConfiguration(
       String configGcsLocation, String connection) throws IOException, JsonProcessingException {
     ObjectMapper mapper = new ObjectMapper();
@@ -293,14 +361,11 @@ public class DataValidation {
     Map<String, String> connectionConfig =
         mapper.readValue(Files.readString(connectionPath, StandardCharsets.UTF_8), Map.class);
 
-    return DataSourceConfiguration.create(
-        "com.simba.googlebigquery.jdbc.Driver",
-        "jdbc:bigquery://https://www.googleapis.com/bigquery/v2:443;"
-            + "OAuthType=3;QueryDialect=SQL;IgnoreTransactions=1;"
-            + "AllowLargeResults=1;LargeResultDataset=_simba_jdbc;"
-            + "ProjectId="
-            + connectionConfig.get("project_id")
-            + ";");
+    List<String> jdbcDetails = getJdbcUrlAndDriver(configGcsLocation, connection);
+    String jdbcDriver = jdbcDetails.get(0);
+    String jdbcUrl = jdbcDetails.get(1);
+
+    return DataSourceConfiguration.create(jdbcDriver, jdbcUrl); 
   }
 
   private static void buildPipeline(
