@@ -209,9 +209,6 @@ public class ExecuteQueries
                                     continue;
                                 }
                               switch (resultSetMetaData.getColumnType(column)) {
-                                  case Types.VARCHAR:
-                                      key.add(resultSet.getString(column));
-                                    break;
                                   case Types.INTEGER:
                                       key.add(String.valueOf(resultSet.getInt(column)));
                                     break;
@@ -219,7 +216,7 @@ public class ExecuteQueries
                                       key.add(String.valueOf(resultSet.getLong(column)));
                                       break;
                                   default:
-                                      LOG.info("Unknown column Type");
+                                      key.add(resultSet.getString(column));
                                 }
                             }
                             out.output(KV.of(key, resultSet.getString("hash__all")));
