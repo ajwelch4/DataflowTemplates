@@ -21,6 +21,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -35,7 +36,6 @@ import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionView;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-//import java.sql.Types;
 
 /**
  * ExecuteQueries.
@@ -208,7 +208,19 @@ public class ExecuteQueries
                                 if (resultSetMetaData.getColumnName(column).equals("hash__all") || resultSetMetaData.getColumnName(column).equals("`hash__all`")) {
                                     continue;
                                 }
-                                key.add(resultSet.getString(column));
+                              switch (resultSetMetaData.getColumnType(column)) {
+                                  case Types.VARCHAR:
+                                      key.add(resultSet.getString(column));
+                                    break;
+                                  case Types.INTEGER:
+                                      key.add(String.valueOf(resultSet.getInt(column)));
+                                    break;
+                                  case Types.BIGINT:
+                                      key.add(String.valueOf(resultSet.getLong(column)));
+                                      break;
+                                  default:
+                                      LOG.info("Unknown column Type");
+                                }
                             }
                             out.output(KV.of(key, resultSet.getString("hash__all")));
                         }
