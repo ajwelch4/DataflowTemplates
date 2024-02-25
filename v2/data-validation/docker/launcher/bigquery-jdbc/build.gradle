@@ -1,0 +1,27 @@
+plugins {
+    id 'java'
+    id 'maven-publish'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
+}
+
+jar {
+    enabled false
+}
+
+tasks.build.dependsOn tasks.shadowJar
+
+shadowJar {
+    archiveClassifier = ''
+    zip64 = true
+    mergeServiceFiles()
+    enableRelocation = true
+    relocationPrefix = 'com.google.cloud.teleport.v2.bigquery.jdbc.vendor'
+    // Relocate string literals in OpenCensus
+    // https://github.com/census-instrumentation/opencensus-java/blob/v0.31.1/api/src/main/java/io/opencensus/trace/Tracing.java#L92-L137
+    relocate 'io.opencensus', 'com.google.cloud.teleport.v2.bigquery.jdbc.vendor.io.opencensus'
+    relocate 'io.opentelemetry', 'com.google.cloud.teleport.v2.bigquery.jdbc.vendor.io.opentelemetry'
+}
+
+dependencies {
+    implementation fileTree(dir: 'bigquery-jdbc', include: ['*.jar'])
+}

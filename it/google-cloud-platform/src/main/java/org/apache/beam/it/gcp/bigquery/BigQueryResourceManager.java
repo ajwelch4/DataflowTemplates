@@ -27,6 +27,7 @@ import com.google.cloud.bigquery.DatasetInfo;
 import com.google.cloud.bigquery.InsertAllRequest.RowToInsert;
 import com.google.cloud.bigquery.InsertAllResponse;
 import com.google.cloud.bigquery.QueryJobConfiguration;
+import com.google.cloud.bigquery.RangePartitioning;
 import com.google.cloud.bigquery.Schema;
 import com.google.cloud.bigquery.StandardTableDefinition;
 import com.google.cloud.bigquery.Table;
@@ -211,13 +212,32 @@ public final class BigQueryResourceManager implements ResourceManager {
    * @return The TableId (reference) to the table
    * @throws BigQueryResourceManagerException if there is an error creating the table in BigQuery.
    */
-  public synchronized TableId createTable(String tableName, Schema schema)
-      throws BigQueryResourceManagerException {
-    return createTable(tableName, schema, System.currentTimeMillis() + 3600000); // 1h
+  public synchronized TableId createTable(String tableName, Schema schema) {
+    return createTable(tableName, schema, null); // 1h
   }
 
   /**
-   * Creates a table within the current dataset given a table name and schema.
+   * Creates a table within the current dataset given a table name, schema and range partitioning.
+   *
+   * <p>This table will automatically expire 1 hour after creation if not cleaned up manually or by
+   * calling the {@link BigQueryResourceManager#cleanupAll()} method.
+   *
+   * <p>Note: Implementations may do dataset creation here, if one does not already exist.
+   *
+   * @param tableName The name of the table.
+   * @param schema A schema object that defines the table.
+   * @param partitioning A RangePartitioning object that defines the partitioning of the table.
+   * @return The TableId (reference) to the table
+   * @throws BigQueryResourceManagerException if there is an error creating the table in BigQuery.
+   */
+  public synchronized TableId createTable(
+      String tableName, Schema schema, RangePartitioning partitioning)
+      throws BigQueryResourceManagerException {
+    return createTable(tableName, schema, partitioning, System.currentTimeMillis() + 3600000); // 1h
+  }
+
+  /**
+   * Creates a table within the current dataset given a table name, schema and range partitioning.
    *
    * <p>This table will automatically expire at the time specified by {@code expirationTime} if not
    * cleaned up manually or by calling the {@link BigQueryResourceManager#cleanupAll()} method.
@@ -226,13 +246,14 @@ public final class BigQueryResourceManager implements ResourceManager {
    *
    * @param tableName The name of the table.
    * @param schema A schema object that defines the table.
+   * @param partitioning A RangePartitioning object that defines the partitioning of the table.
    * @param expirationTimeMillis Sets the time when this table expires, in milliseconds since the
    *     epoch.
    * @return The TableId (reference) to the table
    * @throws BigQueryResourceManagerException if there is an error creating the table in BigQuery.
    */
   public synchronized TableId createTable(
-      String tableName, Schema schema, Long expirationTimeMillis)
+      String tableName, Schema schema, RangePartitioning partitioning, Long expirationTimeMillis)
       throws BigQueryResourceManagerException {
     // Check table ID
     BigQueryResourceManagerUtils.checkValidTableId(tableName);
@@ -252,7 +273,12 @@ public final class BigQueryResourceManager implements ResourceManager {
     try {
       TableId tableId = TableId.of(dataset.getDatasetId().getDataset(), tableName);
       if (bigQuery.getTable(tableId) == null) {
-        TableDefinition tableDefinition = StandardTableDefinition.of(schema);
+        StandardTableDefinition.Builder tableDefinitionBuilder =
+            StandardTableDefinition.newBuilder().setSchema(schema);
+        if (partitioning != null) {
+          tableDefinitionBuilder.setRangePartitioning(partitioning);
+        }
+        TableDefinition tableDefinition = tableDefinitionBuilder.build();
         TableInfo tableInfo =
             TableInfo.newBuilder(tableId, tableDefinition)
                 .setExpirationTime(expirationTimeMillis)

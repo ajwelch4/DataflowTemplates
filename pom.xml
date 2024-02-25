@@ -154,12 +154,12 @@
         <version>${log4j-2.version}</version>
       </dependency>
 
-      <!-- Enforce updated version of SnakeYAML -->
-      <dependency>
+      <!-- TODO: Enforce updated version of SnakeYAML -->
+      <!-- <dependency>
         <groupId>org.yaml</groupId>
         <artifactId>snakeyaml</artifactId>
         <version>${snakeyaml.version}</version>
-      </dependency>
+      </dependency> -->
 
       <!-- Enforce non-vulnerable version of jettison -->
       <dependency>
