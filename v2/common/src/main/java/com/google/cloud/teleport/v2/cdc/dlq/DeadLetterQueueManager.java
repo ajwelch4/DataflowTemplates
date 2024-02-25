@@ -15,10 +15,13 @@
  */
 package com.google.cloud.teleport.v2.cdc.dlq;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.cloud.teleport.v2.values.FailsafeElement;
 import java.io.IOException;
 import java.io.Serializable;
 import org.apache.beam.sdk.io.FileSystems;
+import org.apache.beam.sdk.io.fs.MatchResult.Metadata;
 import org.apache.beam.sdk.io.fs.ResolveOptions.StandardResolveOptions;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.PTransform;
@@ -28,8 +31,6 @@ import org.apache.beam.sdk.values.PCollection;
 import org.apache.beam.sdk.values.PCollectionTuple;
 import org.apache.beam.sdk.values.TupleTag;
 import org.apache.beam.sdk.values.TupleTagList;
-import org.codehaus.jackson.JsonNode;
-import org.codehaus.jackson.map.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,14 +38,11 @@ import org.slf4j.LoggerFactory;
  * A manager for the Dead Letter Queue of a pipeline. It helps build re-consumers, and DLQ sinks.
  */
 public class DeadLetterQueueManager implements Serializable {
-
   private static final Logger LOG = LoggerFactory.getLogger(DeadLetterQueueManager.class);
-
-  private static final String DATETIME_FILEPATH_SUFFIX = "YYYY/MM/DD/HH/mm/";
+  private static final String DATETIME_FILEPATH_SUFFIX = "YYYY/MM/dd/HH/mm/";
   private final String retryDlqDirectory;
   private final String severeDlqDirectory;
   private final int maxRetries;
-
   /* The tag for change events which were retried over the specified count */
   public static final TupleTag<FailsafeElement<String, String>> PERMANENT_ERRORS =
       new TupleTag<FailsafeElement<String, String>>();
@@ -75,12 +73,21 @@ public class DeadLetterQueueManager implements Serializable {
     return new DeadLetterQueueManager(retryDlqUri, severeDlqUri, maxRetries);
   }
 
+  public static DeadLetterQueueManager create(
+      String dlqDirectory, String retryDlqUri, int maxRetries) {
+    String severeDlqUri =
+        FileSystems.matchNewResource(dlqDirectory, true)
+            .resolve("severe", StandardResolveOptions.RESOLVE_DIRECTORY)
+            .toString();
+    return new DeadLetterQueueManager(retryDlqUri, severeDlqUri, maxRetries);
+  }
+
   public String getRetryDlqDirectory() {
     return retryDlqDirectory;
   }
 
   public String getSevereDlqDirectory() {
-    return retryDlqDirectory;
+    return severeDlqDirectory;
   }
 
   public String getRetryDlqDirectoryWithDateTime() {
@@ -97,6 +104,12 @@ public class DeadLetterQueueManager implements Serializable {
 
   public PTransform<PBegin, PCollection<String>> dlqReconsumer(Integer recheckPeriodMinutes) {
     return FileBasedDeadLetterQueueReconsumer.create(retryDlqDirectory, recheckPeriodMinutes);
+  }
+
+  public PCollectionTuple getReconsumerDataTransformForFiles(PCollection<Metadata> input) {
+    return getReconsumerDataTransform(
+        input.apply(
+            "Move and consume", FileBasedDeadLetterQueueReconsumer.moveAndConsumeMatches()));
   }
 
   public PCollectionTuple getReconsumerDataTransform(PCollection<String> reconsumedElements) {
@@ -122,7 +135,6 @@ public class DeadLetterQueueManager implements Serializable {
                         output.get(RETRYABLE_ERRORS).output(element);
                         return;
                       }
-
                       String error = jsonDLQElement.get("_metadata_error").asText();
                       element.setErrorMessage(error);
                       output.get(PERMANENT_ERRORS).output(element);

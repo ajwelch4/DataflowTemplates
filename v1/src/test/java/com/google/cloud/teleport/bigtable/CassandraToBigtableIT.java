@@ -15,32 +15,36 @@
  */
 package com.google.cloud.teleport.bigtable;
 
-import static com.google.cloud.teleport.it.matchers.TemplateAsserts.assertThatPipeline;
-import static com.google.cloud.teleport.it.matchers.TemplateAsserts.assertThatResult;
 import static com.google.common.truth.Truth.assertThat;
+import static org.apache.beam.it.gcp.bigtable.matchers.BigtableAsserts.assertThatBigtableRecords;
+import static org.apache.beam.it.truthmatchers.PipelineAsserts.assertThatPipeline;
+import static org.apache.beam.it.truthmatchers.PipelineAsserts.assertThatResult;
 
+import com.datastax.oss.driver.api.core.servererrors.AlreadyExistsException;
 import com.google.cloud.bigtable.data.v2.models.Row;
-import com.google.cloud.teleport.it.TemplateTestBase;
-import com.google.cloud.teleport.it.bigtable.DefaultBigtableResourceManager;
-import com.google.cloud.teleport.it.cassandra.CassandraResourceManager;
-import com.google.cloud.teleport.it.cassandra.DefaultCassandraResourceManager;
-import com.google.cloud.teleport.it.common.ResourceManagerUtils;
-import com.google.cloud.teleport.it.launcher.PipelineLauncher;
-import com.google.cloud.teleport.it.launcher.PipelineLauncher.LaunchInfo;
-import com.google.cloud.teleport.it.launcher.PipelineOperator;
 import com.google.cloud.teleport.metadata.TemplateIntegrationTest;
 import com.google.common.collect.ImmutableList;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+import org.apache.beam.it.cassandra.CassandraResourceManager;
+import org.apache.beam.it.common.PipelineLauncher;
+import org.apache.beam.it.common.PipelineLauncher.LaunchInfo;
+import org.apache.beam.it.common.PipelineOperator;
+import org.apache.beam.it.common.utils.ExceptionUtils;
+import org.apache.beam.it.common.utils.ResourceManagerUtils;
+import org.apache.beam.it.gcp.TemplateTestBase;
+import org.apache.beam.it.gcp.bigtable.BigtableResourceManager;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Integration test for {@link CassandraToBigtable}. */
 @Category(TemplateIntegrationTest.class)
@@ -48,16 +52,17 @@ import org.junit.runners.JUnit4;
 @RunWith(JUnit4.class)
 public class CassandraToBigtableIT extends TemplateTestBase {
 
+  private static final Logger LOG = LoggerFactory.getLogger(CassandraToBigtableIT.class);
+
   private CassandraResourceManager cassandraResourceManager;
-  private DefaultBigtableResourceManager bigtableResourceManager;
+  private BigtableResourceManager bigtableResourceManager;
 
   @Before
   public void setup() throws IOException {
-    cassandraResourceManager =
-        DefaultCassandraResourceManager.builder(testName).setHost(HOST_IP).build();
+    cassandraResourceManager = CassandraResourceManager.builder(testName).build();
     bigtableResourceManager =
-        DefaultBigtableResourceManager.builder(testName, PROJECT)
-            .setCredentialsProvider(credentialsProvider)
+        BigtableResourceManager.builder(testName, PROJECT, credentialsProvider)
+            .maybeUseStaticInstance()
             .build();
   }
 
@@ -69,14 +74,28 @@ public class CassandraToBigtableIT extends TemplateTestBase {
   @Test
   public void testCassandraToBigtable() throws IOException {
     // Arrange
-    String tableName = "test_table";
+    String sourceTableName =
+        "source_table_" + RandomStringUtils.randomAlphanumeric(8).toLowerCase();
+    String tableName = "test_table_" + RandomStringUtils.randomAlphanumeric(8);
     List<Map<String, Object>> records = new ArrayList<>();
     records.add(Map.of("id", 1, "company", "Google"));
     records.add(Map.of("id", 2, "company", "Alphabet"));
+    records.add(Map.of("id", 3, "company", "Acme Inc"));
 
-    cassandraResourceManager.executeStatement(
-        "CREATE TABLE source_data ( id int PRIMARY KEY, company text )");
-    cassandraResourceManager.insertDocuments("source_data", records);
+    try {
+      cassandraResourceManager.executeStatement(
+          "CREATE TABLE " + sourceTableName + " ( id int PRIMARY KEY, company text )");
+    } catch (Exception e) {
+      // This might happen because DriverTimeouts are retried on the ResourceManager, but the
+      // might have gone through.
+      if (ExceptionUtils.containsType(e, AlreadyExistsException.class)) {
+        LOG.warn("Already exists creating table {}, ignoring", e);
+      } else {
+        throw e;
+      }
+    }
+
+    cassandraResourceManager.insertDocuments(sourceTableName, records);
 
     String colFamily = "names";
     bigtableResourceManager.createTable(tableName, ImmutableList.of(colFamily));
@@ -86,7 +105,7 @@ public class CassandraToBigtableIT extends TemplateTestBase {
             .addParameter("cassandraHosts", cassandraResourceManager.getHost())
             .addParameter("cassandraPort", String.valueOf(cassandraResourceManager.getPort()))
             .addParameter("cassandraKeyspace", cassandraResourceManager.getKeyspaceName())
-            .addParameter("cassandraTable", "source_data")
+            .addParameter("cassandraTable", sourceTableName)
             .addParameter("bigtableProjectId", PROJECT)
             .addParameter("bigtableInstanceId", bigtableResourceManager.getInstanceId())
             .addParameter("bigtableTableId", tableName)
@@ -102,15 +121,12 @@ public class CassandraToBigtableIT extends TemplateTestBase {
     assertThatResult(result).isLaunchFinished();
 
     List<Row> rows = bigtableResourceManager.readTable(tableName);
-
-    // Create a map of <id, name>
-    Map<String, String> values =
-        rows.stream()
-            .collect(
-                Collectors.toMap(
-                    row -> row.getKey().toStringUtf8(),
-                    row -> row.getCells().get(0).getValue().toStringUtf8()));
-    assertThat(values.get("1")).isEqualTo("Google");
-    assertThat(values.get("2")).isEqualTo("Alphabet");
+    assertThat(rows).hasSize(3);
+    assertThatBigtableRecords(rows, colFamily)
+        .hasRecordsUnordered(
+            List.of(
+                Map.of("company", "Google"),
+                Map.of("company", "Alphabet"),
+                Map.of("company", "Acme Inc")));
   }
 }

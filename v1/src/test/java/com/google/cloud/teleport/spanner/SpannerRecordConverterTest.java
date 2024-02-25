@@ -697,13 +697,13 @@ public class SpannerRecordConverterTest {
     Schema schemaLogicalType = logicalTypeConverter.convert(ddl).iterator().next();
     SpannerRecordConverter recordConverterLogicalType =
         new SpannerRecordConverter(schemaLogicalType, Dialect.POSTGRESQL);
-    GenericRecord avroRecordLogialType = recordConverterLogicalType.convert(struct);
-    assertThat(avroRecordLogialType.get("id"), equalTo(1L));
-    assertThat(avroRecordLogialType.get("ts1"), equalTo(1L));
-    assertThat(avroRecordLogialType.get("ts2"), equalTo(10000001L));
-    assertThat(avroRecordLogialType.get("ts3"), equalTo(0L));
-    assertThat(avroRecordLogialType.get("ts4"), equalTo(-62135596800000000L));
-    assertThat(avroRecordLogialType.get("ts5"), equalTo(253402300799999999L));
+    GenericRecord avroRecordLogicalType = recordConverterLogicalType.convert(struct);
+    assertThat(avroRecordLogicalType.get("id"), equalTo(1L));
+    assertThat(avroRecordLogicalType.get("ts1"), equalTo(1L));
+    assertThat(avroRecordLogicalType.get("ts2"), equalTo(10000001L));
+    assertThat(avroRecordLogicalType.get("ts3"), equalTo(0L));
+    assertThat(avroRecordLogicalType.get("ts4"), equalTo(-62135596800000000L));
+    assertThat(avroRecordLogicalType.get("ts5"), equalTo(253402300799999999L));
   }
 
   @Test
@@ -914,5 +914,19 @@ public class SpannerRecordConverterTest {
 
     assertEquals(1L, avroRecord.get("id"));
     assertNull(avroRecord.get("generatedInt"));
+  }
+
+  @Test
+  public void dateToString() {
+    List<Date> dates =
+        Arrays.asList(
+            Date.fromYearMonthDay(10, 9, 5),
+            Date.fromYearMonthDay(500, 3, 4),
+            Date.fromYearMonthDay(2016, 12, 31),
+            Date.fromYearMonthDay(1, 1, 1));
+
+    for (Date date : dates) {
+      assertEquals(SpannerRecordConverter.dateToString(date), date.toString());
+    }
   }
 }

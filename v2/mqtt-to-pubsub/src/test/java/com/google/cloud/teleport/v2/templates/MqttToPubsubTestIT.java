@@ -15,14 +15,9 @@
  */
 package com.google.cloud.teleport.v2.templates;
 
-import static com.google.cloud.teleport.it.matchers.TemplateAsserts.assertThatPipeline;
-import static com.google.cloud.teleport.it.matchers.TemplateAsserts.assertThatResult;
+import static org.apache.beam.it.truthmatchers.PipelineAsserts.assertThatPipeline;
+import static org.apache.beam.it.truthmatchers.PipelineAsserts.assertThatResult;
 
-import com.google.cloud.teleport.it.TemplateTestBase;
-import com.google.cloud.teleport.it.launcher.PipelineLauncher;
-import com.google.cloud.teleport.it.launcher.PipelineOperator;
-import com.google.cloud.teleport.it.pubsub.DefaultPubsubResourceManager;
-import com.google.cloud.teleport.it.pubsub.PubsubResourceManager;
 import com.google.cloud.teleport.metadata.TemplateIntegrationTest;
 import com.google.pubsub.v1.SubscriptionName;
 import com.google.pubsub.v1.TopicName;
@@ -31,6 +26,11 @@ import com.hivemq.client.mqtt.mqtt5.Mqtt5BlockingClient;
 import com.hivemq.client.mqtt.mqtt5.Mqtt5Client;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import org.apache.beam.it.common.PipelineLauncher;
+import org.apache.beam.it.common.PipelineOperator;
+import org.apache.beam.it.common.TestProperties;
+import org.apache.beam.it.gcp.TemplateTestBase;
+import org.apache.beam.it.gcp.pubsub.PubsubResourceManager;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -49,18 +49,15 @@ public class MqttToPubsubTestIT extends TemplateTestBase {
 
   private static final Logger LOG = LoggerFactory.getLogger(MqttToPubsubTestIT.class);
 
-  private static HiveMQContainer hiveMQContainer;
-  private static PubsubResourceManager pubsubClient;
-  private static Mqtt5BlockingClient mqttClient;
+  private HiveMQContainer hiveMQContainer;
+  private PubsubResourceManager pubsubClient;
+  private Mqtt5BlockingClient mqttClient;
 
   @Before
   public void setup() throws IOException {
     hiveMQContainer =
         new HiveMQContainer(DockerImageName.parse("hivemq/hivemq-ce").withTag("2021.3"));
-    pubsubClient =
-        DefaultPubsubResourceManager.builder(testName, PROJECT)
-            .credentialsProvider(credentialsProvider)
-            .build();
+    pubsubClient = PubsubResourceManager.builder(testName, PROJECT, credentialsProvider).build();
     hiveMQContainer.start();
     mqttClient =
         Mqtt5Client.builder()
@@ -111,7 +108,9 @@ public class MqttToPubsubTestIT extends TemplateTestBase {
 
     PipelineLauncher.LaunchConfig.Builder options =
         PipelineLauncher.LaunchConfig.builder(jobName, specPath)
-            .addParameter("brokerServer", "tcp://" + HOST_IP + ":" + hiveMQContainer.getMqttPort())
+            .addParameter(
+                "brokerServer",
+                "tcp://" + TestProperties.hostIp() + ":" + hiveMQContainer.getMqttPort())
             .addParameter("inputTopic", inputTopic)
             .addParameter("outputTopic", topicName.toString())
             .addParameter("username", "")
@@ -122,7 +121,7 @@ public class MqttToPubsubTestIT extends TemplateTestBase {
     assertThatPipeline(info).isRunning();
     PipelineOperator.Result result =
         pipelineOperator()
-            .waitForCondition(
+            .waitForConditionAndFinish(
                 createConfig(info),
                 () -> {
                   mqttClient
