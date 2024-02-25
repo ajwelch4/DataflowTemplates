@@ -30,12 +30,15 @@ func main() {
 
 	mvnFlags := workflows.NewMavenFlags()
 	err := workflows.MvnCleanVerify().Run(
-		mvnFlags.IncludeDependencies(),
-		mvnFlags.IncludeDependents(),
+		// mvnFlags.IncludeDependencies(),
+		// mvnFlags.IncludeDependents(),
 		mvnFlags.SkipCheckstyle(),
 		mvnFlags.SkipJib(),
+		mvnFlags.SkipShade(),
+		mvnFlags.SkipSpotlessCheck(),
 		mvnFlags.SkipIntegrationTests(),
-		mvnFlags.FailAtTheEnd())
+		mvnFlags.FailAtTheEnd(),
+		mvnFlags.ThreadCount(8))
 	if err != nil {
 		log.Fatalf("%v\n", err)
 	}

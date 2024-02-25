@@ -16,8 +16,9 @@
 package com.google.cloud.teleport.v2.templates;
 
 import com.google.cloud.teleport.metadata.TemplateParameter;
-import com.google.cloud.teleport.v2.cdc.sources.DataStreamIO;
+import com.google.cloud.teleport.metadata.TemplateParameter.TemplateEnumOption;
 import com.google.cloud.teleport.v2.common.UncaughtExceptionLogger;
+import com.google.cloud.teleport.v2.datastream.sources.DataStreamIO;
 import com.google.cloud.teleport.v2.values.FailsafeElement;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -45,7 +46,7 @@ import org.slf4j.LoggerFactory;
  * This pipeline ingests DataStream data from GCS. The data is then transformed to BSON documents
  * they are automatically added to MongoDB.
  *
- * <p>Example Usage: TODO: FIX EXMAPLE USAGE
+ * <p>Example Usage: TODO: FIX EXAMPLE USAGE
  */
 public class DataStreamToMongoDB {
 
@@ -96,7 +97,7 @@ public class DataStreamToMongoDB {
 
     @TemplateParameter.Enum(
         order = 2,
-        enumOptions = {"avro", "json"},
+        enumOptions = {@TemplateEnumOption("avro"), @TemplateEnumOption("json")},
         optional = false,
         description = "The GCS input format avro/json",
         helpText = "The file format of the desired input files. Can be avro or json.")
@@ -232,7 +233,7 @@ public class DataStreamToMongoDB {
     PCollection<FailsafeElement<String, String>> jsonRecords =
         PCollectionList.of(datastreamJsonRecords).apply(Flatten.pCollections());
     /**
-     * Does below steps: 1. Converts JSON to BSON documents. 2. Removes the metadata fileds. 3.
+     * Does below steps: 1. Converts JSON to BSON documents. 2. Removes the metadata fields. 3.
      * Inserts the data into MongoDB collections.
      */
     jsonRecords

@@ -15,9 +15,9 @@
  */
 package com.google.cloud.teleport.v2.templates;
 
-import static com.google.cloud.teleport.it.matchers.TemplateAsserts.assertThatPipeline;
-import static com.google.cloud.teleport.it.matchers.TemplateAsserts.assertThatRecords;
-import static com.google.cloud.teleport.it.matchers.TemplateAsserts.assertThatResult;
+import static org.apache.beam.it.gcp.bigquery.matchers.BigQueryAsserts.assertThatBigQueryRecords;
+import static org.apache.beam.it.truthmatchers.PipelineAsserts.assertThatPipeline;
+import static org.apache.beam.it.truthmatchers.PipelineAsserts.assertThatResult;
 
 import com.google.cloud.bigquery.Field;
 import com.google.cloud.bigquery.Field.Mode;
@@ -25,22 +25,23 @@ import com.google.cloud.bigquery.Schema;
 import com.google.cloud.bigquery.StandardSQLTypeName;
 import com.google.cloud.bigquery.TableId;
 import com.google.cloud.bigquery.TableResult;
-import com.google.cloud.teleport.it.TemplateTestBase;
-import com.google.cloud.teleport.it.bigquery.BigQueryResourceManager;
-import com.google.cloud.teleport.it.bigquery.DefaultBigQueryResourceManager;
-import com.google.cloud.teleport.it.bigtable.DefaultBigtableResourceManager;
-import com.google.cloud.teleport.it.common.ResourceManagerUtils;
-import com.google.cloud.teleport.it.conditions.BigQueryRowsCheck;
-import com.google.cloud.teleport.it.kafka.DefaultKafkaResourceManager;
-import com.google.cloud.teleport.it.launcher.PipelineLauncher.LaunchConfig;
-import com.google.cloud.teleport.it.launcher.PipelineLauncher.LaunchInfo;
-import com.google.cloud.teleport.it.launcher.PipelineOperator.Result;
 import com.google.cloud.teleport.metadata.TemplateIntegrationTest;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import org.apache.beam.it.common.PipelineLauncher.LaunchConfig;
+import org.apache.beam.it.common.PipelineLauncher.LaunchInfo;
+import org.apache.beam.it.common.PipelineOperator.Result;
+import org.apache.beam.it.common.TestProperties;
+import org.apache.beam.it.common.utils.ResourceManagerUtils;
+import org.apache.beam.it.gcp.TemplateTestBase;
+import org.apache.beam.it.gcp.bigquery.BigQueryResourceManager;
+import org.apache.beam.it.gcp.bigquery.conditions.BigQueryRowsCheck;
+import org.apache.beam.it.gcp.bigtable.BigtableResourceManager;
+import org.apache.beam.it.kafka.KafkaResourceManager;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
@@ -60,20 +61,18 @@ import org.slf4j.LoggerFactory;
 @RunWith(JUnit4.class)
 public final class KafkaToBigQueryIT extends TemplateTestBase {
 
-  private static final Logger LOG = LoggerFactory.getLogger(DefaultBigtableResourceManager.class);
+  private static final Logger LOG = LoggerFactory.getLogger(BigtableResourceManager.class);
 
-  private DefaultKafkaResourceManager kafkaResourceManager;
+  private KafkaResourceManager kafkaResourceManager;
   private BigQueryResourceManager bigQueryClient;
 
   @Before
   public void setup() throws IOException {
-    bigQueryClient =
-        DefaultBigQueryResourceManager.builder(testName, PROJECT)
-            .setCredentials(credentials)
-            .build();
+    bigQueryClient = BigQueryResourceManager.builder(testName, PROJECT, credentials).build();
     bigQueryClient.createDataset(REGION);
 
-    kafkaResourceManager = DefaultKafkaResourceManager.builder(testName).setHost(HOST_IP).build();
+    kafkaResourceManager =
+        KafkaResourceManager.builder(testName).setHost(TestProperties.hostIp()).build();
   }
 
   @After
@@ -92,7 +91,7 @@ public final class KafkaToBigQueryIT extends TemplateTestBase {
         bigQueryClient.createTable(testName + "_dlq", getDeadletterSchema());
 
     baseKafkaToBigQuery(
-        b -> b.addParameter("outputDeadletterTable", toTableSpec(deadletterTableId)));
+        b -> b.addParameter("outputDeadletterTable", toTableSpecLegacy(deadletterTableId)));
   }
 
   @Test
@@ -114,7 +113,17 @@ public final class KafkaToBigQueryIT extends TemplateTestBase {
             b.addParameter("useStorageWriteApi", "true")
                 .addParameter("numStorageWriteApiStreams", "3")
                 .addParameter("storageWriteApiTriggeringFrequencySec", "3")
-                .addParameter("outputDeadletterTable", toTableSpec(deadletterTableId)));
+                .addParameter("outputDeadletterTable", toTableSpecLegacy(deadletterTableId)));
+  }
+
+  @Test
+  public void testKafkaToBigQueryUsingAtLeastOnceMode() throws IOException {
+    ArrayList<String> experiments = new ArrayList<>();
+    experiments.add("streaming_mode_at_least_once");
+    baseKafkaToBigQuery(
+        b ->
+            b.addEnvironment("additionalExperiments", experiments)
+                .addEnvironment("enableStreamingEngine", true));
   }
 
   private Schema getDeadletterSchema() {
@@ -170,8 +179,8 @@ public final class KafkaToBigQueryIT extends TemplateTestBase {
                     "bootstrapServers",
                     kafkaResourceManager.getBootstrapServers().replace("PLAINTEXT://", ""))
                 .addParameter("inputTopics", topicName)
-                .addParameter("outputTableSpec", toTableSpec(tableId))
-                .addParameter("outputDeadletterTable", toTableSpec(deadletterTableId)));
+                .addParameter("outputTableSpec", toTableSpecLegacy(tableId))
+                .addParameter("outputDeadletterTable", toTableSpecLegacy(deadletterTableId)));
 
     // Act
     LaunchInfo info = launchTemplate(options);
@@ -195,7 +204,7 @@ public final class KafkaToBigQueryIT extends TemplateTestBase {
 
     Result result =
         pipelineOperator()
-            .waitForCondition(
+            .waitForConditionsAndFinish(
                 createConfig(info),
                 BigQueryRowsCheck.builder(bigQueryClient, tableId).setMinRows(20).build(),
                 BigQueryRowsCheck.builder(bigQueryClient, deadletterTableId)
@@ -206,7 +215,7 @@ public final class KafkaToBigQueryIT extends TemplateTestBase {
     assertThatResult(result).meetsConditions();
 
     TableResult tableRows = bigQueryClient.readTable(bqTable);
-    assertThatRecords(tableRows)
+    assertThatBigQueryRecords(tableRows)
         .hasRecordsUnordered(
             List.of(Map.of("id", 11, "name", "Dataflow"), Map.of("id", 12, "name", "Pub/Sub")));
   }

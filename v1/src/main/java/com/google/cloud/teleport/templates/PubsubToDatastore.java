@@ -55,6 +55,7 @@ public class PubsubToDatastore {
             TransformTextViaJavascript.newBuilder()
                 .setFileSystemPath(options.getJavascriptTextTransformGcsPath())
                 .setFunctionName(options.getJavascriptTextTransformFunctionName())
+                .setReloadIntervalMinutes(options.getJavascriptTextTransformReloadIntervalMinutes())
                 .build())
         .apply(
             WriteJsonEntities.newBuilder()

@@ -15,17 +15,10 @@
  */
 package com.google.cloud.teleport.v2.templates;
 
-import static com.google.cloud.teleport.it.matchers.TemplateAsserts.assertThatPipeline;
-import static com.google.cloud.teleport.it.matchers.TemplateAsserts.assertThatResult;
 import static com.google.common.truth.Truth.assertThat;
+import static org.apache.beam.it.truthmatchers.PipelineAsserts.assertThatPipeline;
+import static org.apache.beam.it.truthmatchers.PipelineAsserts.assertThatResult;
 
-import com.google.cloud.teleport.it.TemplateTestBase;
-import com.google.cloud.teleport.it.common.ResourceManagerUtils;
-import com.google.cloud.teleport.it.kafka.DefaultKafkaResourceManager;
-import com.google.cloud.teleport.it.launcher.PipelineLauncher.LaunchConfig;
-import com.google.cloud.teleport.it.launcher.PipelineLauncher.LaunchInfo;
-import com.google.cloud.teleport.it.launcher.PipelineOperator.Result;
-import com.google.cloud.teleport.it.pubsub.DefaultPubsubResourceManager;
 import com.google.cloud.teleport.metadata.SkipDirectRunnerTest;
 import com.google.cloud.teleport.metadata.TemplateIntegrationTest;
 import com.google.common.collect.ImmutableMap;
@@ -33,12 +26,20 @@ import com.google.protobuf.ByteString;
 import com.google.pubsub.v1.TopicName;
 import java.io.IOException;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
+import java.util.Set;
 import java.util.function.Function;
+import org.apache.beam.it.common.PipelineLauncher.LaunchConfig;
+import org.apache.beam.it.common.PipelineLauncher.LaunchInfo;
+import org.apache.beam.it.common.PipelineOperator.Result;
+import org.apache.beam.it.common.TestProperties;
+import org.apache.beam.it.common.utils.ResourceManagerUtils;
+import org.apache.beam.it.gcp.TemplateTestBase;
+import org.apache.beam.it.gcp.pubsub.PubsubResourceManager;
+import org.apache.beam.it.kafka.KafkaResourceManager;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -61,19 +62,18 @@ public final class PubsubToKafkaIT extends TemplateTestBase {
 
   private static final Logger LOG = LoggerFactory.getLogger(PubsubToKafka.class);
 
-  private DefaultKafkaResourceManager kafkaResourceManager;
+  private KafkaResourceManager kafkaResourceManager;
 
-  private DefaultPubsubResourceManager pubsubResourceManager;
+  private PubsubResourceManager pubsubResourceManager;
 
   @Before
   public void setup() throws IOException {
 
     pubsubResourceManager =
-        DefaultPubsubResourceManager.builder(testName, PROJECT)
-            .credentialsProvider(credentialsProvider)
-            .build();
+        PubsubResourceManager.builder(testName, PROJECT, credentialsProvider).build();
 
-    kafkaResourceManager = DefaultKafkaResourceManager.builder(testName).setHost(HOST_IP).build();
+    kafkaResourceManager =
+        KafkaResourceManager.builder(testName).setHost(TestProperties.hostIp()).build();
   }
 
   @After
@@ -82,7 +82,7 @@ public final class PubsubToKafkaIT extends TemplateTestBase {
   }
 
   @Test
-  public void testPubsubToKafka() throws IOException, ExecutionException, InterruptedException {
+  public void testPubsubToKafka() throws IOException {
     pubsubToKafka(Function.identity()); // no extra parameters
   }
 
@@ -121,18 +121,21 @@ public final class PubsubToKafkaIT extends TemplateTestBase {
     assertThatPipeline(info).isRunning();
 
     List<String> inMessages = Arrays.asList("first message", "second message");
-    for (final String message : inMessages) {
-      ByteString data = ByteString.copyFromUtf8(message);
-      pubsubResourceManager.publish(tc, ImmutableMap.of(), data);
-    }
-    LOG.info("Published messages to Pubsub Topic");
 
-    List<String> outMessages = new ArrayList<>();
+    Set<String> outMessages = new HashSet<>();
     Result result =
         pipelineOperator()
             .waitForConditionAndFinish(
                 createConfig(info),
                 () -> {
+
+                  // For tests that run against topics, sending repeatedly will make it work for
+                  // cases in which the on-demand subscription is created after sending messages.
+                  for (final String message : inMessages) {
+                    ByteString data = ByteString.copyFromUtf8(message);
+                    pubsubResourceManager.publish(tc, ImmutableMap.of(), data);
+                  }
+
                   ConsumerRecords<String, String> outMessage =
                       consumer.poll(Duration.ofMillis(100));
                   for (ConsumerRecord<String, String> message : outMessage) {

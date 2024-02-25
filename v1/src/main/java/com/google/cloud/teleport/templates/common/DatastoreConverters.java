@@ -61,7 +61,9 @@ public class DatastoreConverters {
 
   /** Options for Reading Datastore Entities. */
   public interface DatastoreReadOptions extends PipelineOptions {
-    /** @deprecated Please use getFirestoreReadGqlQuery() instead. */
+    /**
+     * @deprecated Please use getFirestoreReadGqlQuery() instead.
+     */
     @TemplateParameter.Text(
         order = 1,
         regexes = {"^.+$"},
@@ -71,12 +73,16 @@ public class DatastoreConverters {
     @Deprecated
     ValueProvider<String> getDatastoreReadGqlQuery();
 
-    /** @deprecated Please use setFirestoreReadGqlQuery(value) instead. */
+    /**
+     * @deprecated Please use setFirestoreReadGqlQuery(value) instead.
+     */
     @Hidden
     @Deprecated
     void setDatastoreReadGqlQuery(ValueProvider<String> datastoreReadGqlQuery);
 
-    /** @deprecated Please use getFirestoreReadProjectId() instead. */
+    /**
+     * @deprecated Please use getFirestoreReadProjectId() instead.
+     */
     @TemplateParameter.ProjectId(
         order = 2,
         description = "Project ID",
@@ -85,12 +91,16 @@ public class DatastoreConverters {
     @Deprecated
     ValueProvider<String> getDatastoreReadProjectId();
 
-    /** @deprecated Please use setFirestoreReadProjectId(value) instead. */
+    /**
+     * @deprecated Please use setFirestoreReadProjectId(value) instead.
+     */
     @Hidden
     @Deprecated
     void setDatastoreReadProjectId(ValueProvider<String> datastoreReadProjectId);
 
-    /** @deprecated Please use getFirestoreReadNamespace() instead. */
+    /**
+     * @deprecated Please use getFirestoreReadNamespace() instead.
+     */
     @TemplateParameter.Text(
         order = 3,
         optional = true,
@@ -102,10 +112,12 @@ public class DatastoreConverters {
     @Deprecated
     ValueProvider<String> getDatastoreReadNamespace();
 
-    /** @deprecated Please use setFirestoreReadNamespace(value) instead. */
+    /**
+     * @deprecated Please use setFirestoreReadNamespace(value) instead.
+     */
     @Hidden
     @Deprecated
-    void setDatastoreReadNamespace(ValueProvider<String> datstoreReadNamespace);
+    void setDatastoreReadNamespace(ValueProvider<String> datastoreReadNamespace);
 
     @TemplateParameter.Text(
         order = 4,
@@ -138,7 +150,9 @@ public class DatastoreConverters {
 
   /** Options for writing Datastore Entities. */
   public interface DatastoreWriteOptions extends PipelineOptions {
-    /** @deprecated Please use getFirestoreWriteProjectId() instead. */
+    /**
+     * @deprecated Please use getFirestoreWriteProjectId() instead.
+     */
     @TemplateParameter.ProjectId(
         order = 1,
         description = "Project ID",
@@ -147,12 +161,16 @@ public class DatastoreConverters {
     @Deprecated
     ValueProvider<String> getDatastoreWriteProjectId();
 
-    /** @deprecated Please use setFirestoreWriteProjectId(value) instead. */
+    /**
+     * @deprecated Please use setFirestoreWriteProjectId(value) instead.
+     */
     @Hidden
     @Deprecated
     void setDatastoreWriteProjectId(ValueProvider<String> datstoreWriteProjectId);
 
-    /** @deprecated Please use getFirestoreWriteEntityKind() instead. */
+    /**
+     * @deprecated Please use getFirestoreWriteEntityKind() instead.
+     */
     @TemplateParameter.Text(
         order = 2,
         optional = true,
@@ -163,12 +181,16 @@ public class DatastoreConverters {
     @Deprecated
     ValueProvider<String> getDatastoreWriteEntityKind();
 
-    /** @deprecated Please use setFirestoreWriteEntityKind(value) instead. */
+    /**
+     * @deprecated Please use setFirestoreWriteEntityKind(value) instead.
+     */
     @Hidden
     @Deprecated
     void setDatastoreWriteEntityKind(ValueProvider<String> value);
 
-    /** @deprecated Please use getFirestoreWriteNamespace() instead. */
+    /**
+     * @deprecated Please use getFirestoreWriteNamespace() instead.
+     */
     @TemplateParameter.Text(
         order = 3,
         optional = true,
@@ -179,12 +201,16 @@ public class DatastoreConverters {
     @Deprecated
     ValueProvider<String> getDatastoreWriteNamespace();
 
-    /** @deprecated Please use setFirestoreWriteNamespace(value) instead. */
+    /**
+     * @deprecated Please use setFirestoreWriteNamespace(value) instead.
+     */
     @Hidden
     @Deprecated
     void setDatastoreWriteNamespace(ValueProvider<String> value);
 
-    /** @deprecated Please use getFirestoreHintNumWorkers() instead. */
+    /**
+     * @deprecated Please use getFirestoreHintNumWorkers() instead.
+     */
     @TemplateParameter.Text(
         order = 4,
         optional = true,
@@ -197,7 +223,9 @@ public class DatastoreConverters {
     @Deprecated
     ValueProvider<Integer> getDatastoreHintNumWorkers();
 
-    /** @deprecated Please use setFirestoreHintNumWorkers(value) instead. */
+    /**
+     * @deprecated Please use setFirestoreHintNumWorkers(value) instead.
+     */
     @Hidden
     @Deprecated
     void setDatastoreHintNumWorkers(ValueProvider<Integer> value);
@@ -245,7 +273,9 @@ public class DatastoreConverters {
 
   /** Options for deleting Datastore Entities. */
   public interface DatastoreDeleteOptions extends PipelineOptions {
-    /** @deprecated Please use getFirestoreDeleteProjectId() instead. */
+    /**
+     * @deprecated Please use getFirestoreDeleteProjectId() instead.
+     */
     @TemplateParameter.ProjectId(
         order = 1,
         description =
@@ -255,12 +285,16 @@ public class DatastoreConverters {
     @Deprecated
     ValueProvider<String> getDatastoreDeleteProjectId();
 
-    /** @deprecated Please use setFirestoreDeleteProjectId(value) instead. */
+    /**
+     * @deprecated Please use setFirestoreDeleteProjectId(value) instead.
+     */
     @Hidden
     @Deprecated
     void setDatastoreDeleteProjectId(ValueProvider<String> datastoreDeleteProjectId);
 
-    /** @deprecated Please use getFirestoreHintNumWorkers() instead. */
+    /**
+     * @deprecated Please use getFirestoreHintNumWorkers() instead.
+     */
     @TemplateParameter.Text(
         order = 2,
         optional = true,
@@ -273,7 +307,9 @@ public class DatastoreConverters {
     @Deprecated
     ValueProvider<Integer> getDatastoreHintNumWorkers();
 
-    /** @deprecated Please use setFirestoreHintNumWorkers(value) instead. */
+    /**
+     * @deprecated Please use setFirestoreHintNumWorkers(value) instead.
+     */
     @Hidden
     @Deprecated
     void setDatastoreHintNumWorkers(ValueProvider<Integer> value);
@@ -585,7 +621,7 @@ public class DatastoreConverters {
       entityJsonPrinter = new EntityJsonPrinter();
     }
 
-    /** Processes Datstore entity into json. */
+    /** Processes Datastore entity into json. */
     @ProcessElement
     public void processElement(ProcessContext c) throws InvalidProtocolBufferException {
       Entity entity = c.element();
@@ -748,7 +784,7 @@ public class DatastoreConverters {
   public static class EntityJsonParser {
 
     // A cached jsonParser
-    private JsonFormat.Parser jsonParser;
+    private final JsonFormat.Parser jsonParser;
 
     public EntityJsonParser() {
       TypeRegistry typeRegistry = TypeRegistry.newBuilder().add(Entity.getDescriptor()).build();
@@ -762,9 +798,9 @@ public class DatastoreConverters {
     }
 
     public Entity parse(String json) throws InvalidProtocolBufferException {
-      Entity.Builder entityBuilter = Entity.newBuilder();
-      merge(json, entityBuilter);
-      return entityBuilter.build();
+      Entity.Builder entityBuilder = Entity.newBuilder();
+      merge(json, entityBuilder);
+      return entityBuilder.build();
     }
   }
 
@@ -813,7 +849,7 @@ public class DatastoreConverters {
       // same entity more than once in the same commit is not supported (error "A non-transactional
       // commit may not contain multiple mutations affecting the same entity). Messages with the
       // same key are thus not written to Datastore and instead routed to an error PCollection for
-      // further handlig downstream.
+      // further handling downstream.
       PCollectionTuple entities =
           entity.apply(
               "CheckSameKey",

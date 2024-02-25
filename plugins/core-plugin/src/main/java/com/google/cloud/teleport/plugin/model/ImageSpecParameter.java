@@ -18,17 +18,24 @@ package com.google.cloud.teleport.plugin.model;
 import com.google.cloud.teleport.metadata.TemplateParameter;
 import com.google.cloud.teleport.metadata.util.MetadataUtils;
 import java.lang.annotation.Annotation;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
 
 /** Parameters in a template. */
 public class ImageSpecParameter {
 
   private String name;
+  private String groupName;
   private String label;
   private String helpText;
   private Boolean isOptional;
+  private Boolean hiddenUi;
   private List<String> regexes;
+  private List<ImageSpecParameterEnumOption> enumOptions;
   private ImageSpecParameterType paramType;
+  private String defaultValue;
 
   public String getName() {
     return name;
@@ -36,6 +43,14 @@ public class ImageSpecParameter {
 
   public void setName(String name) {
     this.name = name;
+  }
+
+  public String getGroupName() {
+    return groupName;
+  }
+
+  public void setGroupName(String groupName) {
+    this.groupName = groupName;
   }
 
   public String getLabel() {
@@ -58,11 +73,23 @@ public class ImageSpecParameter {
     return isOptional;
   }
 
+  public Boolean hiddenUi() {
+    return hiddenUi;
+  }
+
   public void setOptional(Boolean optional) {
     if (optional == null || !optional) {
-      isOptional = null;
+      this.isOptional = null;
     } else {
-      isOptional = true;
+      this.isOptional = true;
+    }
+  }
+
+  public void setHiddenUi(Boolean hiddenUi) {
+    if (hiddenUi == null || !hiddenUi) {
+      this.hiddenUi = null;
+    } else {
+      this.hiddenUi = true;
     }
   }
 
@@ -82,6 +109,26 @@ public class ImageSpecParameter {
     this.paramType = parameterType;
   }
 
+  public Boolean getOptional() {
+    return isOptional;
+  }
+
+  public String getDefaultValue() {
+    return defaultValue;
+  }
+
+  public void setDefaultValue(String defaultValue) {
+    this.defaultValue = defaultValue;
+  }
+
+  public List<ImageSpecParameterEnumOption> getEnumOptions() {
+    return enumOptions;
+  }
+
+  public void setEnumOptions(List<ImageSpecParameterEnumOption> enumOptions) {
+    this.enumOptions = enumOptions;
+  }
+
   public void processParamType(Annotation parameterAnnotation) {
     switch (parameterAnnotation.annotationType().getSimpleName()) {
       case "Text":
@@ -90,9 +137,14 @@ public class ImageSpecParameter {
           this.setName(simpleTextParam.name());
         }
         processDescriptions(
-            simpleTextParam.description(), simpleTextParam.helpText(), simpleTextParam.example());
+            simpleTextParam.groupName(),
+            simpleTextParam.description(),
+            simpleTextParam.helpText(),
+            simpleTextParam.example());
         this.setOptional(simpleTextParam.optional());
+        this.setHiddenUi(simpleTextParam.hiddenUi());
         this.setParamType(ImageSpecParameterType.TEXT);
+
         break;
       case "GcsReadFile":
         TemplateParameter.GcsReadFile gcsReadFileParam =
@@ -101,10 +153,12 @@ public class ImageSpecParameter {
           this.setName(gcsReadFileParam.name());
         }
         processDescriptions(
+            gcsReadFileParam.groupName(),
             gcsReadFileParam.description(),
             gcsReadFileParam.helpText(),
             gcsReadFileParam.example());
         this.setOptional(gcsReadFileParam.optional());
+        this.setHiddenUi(gcsReadFileParam.hiddenUi());
         this.setParamType(ImageSpecParameterType.GCS_READ_FILE);
         break;
       case "GcsReadFolder":
@@ -114,10 +168,12 @@ public class ImageSpecParameter {
           this.setName(gcsReadFolderParam.name());
         }
         processDescriptions(
+            gcsReadFolderParam.groupName(),
             gcsReadFolderParam.description(),
             gcsReadFolderParam.helpText(),
             gcsReadFolderParam.example());
         this.setOptional(gcsReadFolderParam.optional());
+        this.setHiddenUi(gcsReadFolderParam.hiddenUi());
         this.setParamType(ImageSpecParameterType.GCS_READ_FOLDER);
         break;
       case "GcsWriteFile":
@@ -127,10 +183,12 @@ public class ImageSpecParameter {
           this.setName(gcsWriteFileParam.name());
         }
         processDescriptions(
+            gcsWriteFileParam.groupName(),
             gcsWriteFileParam.description(),
             gcsWriteFileParam.helpText(),
             gcsWriteFileParam.example());
         this.setOptional(gcsWriteFileParam.optional());
+        this.setHiddenUi(gcsWriteFileParam.hiddenUi());
         this.setParamType(ImageSpecParameterType.GCS_WRITE_FILE);
         break;
       case "GcsWriteFolder":
@@ -140,10 +198,12 @@ public class ImageSpecParameter {
           this.setName(gcsWriteFolderParam.name());
         }
         processDescriptions(
+            gcsWriteFolderParam.groupName(),
             gcsWriteFolderParam.description(),
             gcsWriteFolderParam.helpText(),
             gcsWriteFolderParam.example());
         this.setOptional(gcsWriteFolderParam.optional());
+        this.setHiddenUi(gcsWriteFolderParam.hiddenUi());
         this.setParamType(ImageSpecParameterType.GCS_WRITE_FOLDER);
         break;
       case "PubsubSubscription":
@@ -153,10 +213,12 @@ public class ImageSpecParameter {
           this.setName(pubsubSubscriptionParam.name());
         }
         processDescriptions(
+            pubsubSubscriptionParam.groupName(),
             pubsubSubscriptionParam.description(),
             pubsubSubscriptionParam.helpText(),
             pubsubSubscriptionParam.example());
         this.setOptional(pubsubSubscriptionParam.optional());
+        this.setHiddenUi(pubsubSubscriptionParam.hiddenUi());
         this.setParamType(ImageSpecParameterType.PUBSUB_SUBSCRIPTION);
         break;
       case "PubsubTopic":
@@ -166,10 +228,12 @@ public class ImageSpecParameter {
           this.setName(pubsubTopicParam.name());
         }
         processDescriptions(
+            pubsubTopicParam.groupName(),
             pubsubTopicParam.description(),
             pubsubTopicParam.helpText(),
             pubsubTopicParam.example());
         this.setOptional(pubsubTopicParam.optional());
+        this.setHiddenUi(pubsubTopicParam.hiddenUi());
         this.setParamType(ImageSpecParameterType.PUBSUB_TOPIC);
         break;
       case "Password":
@@ -178,8 +242,12 @@ public class ImageSpecParameter {
           this.setName(passwordParam.name());
         }
         processDescriptions(
-            passwordParam.description(), passwordParam.helpText(), passwordParam.example());
+            passwordParam.groupName(),
+            passwordParam.description(),
+            passwordParam.helpText(),
+            passwordParam.example());
         this.setOptional(passwordParam.optional());
+        this.setHiddenUi(passwordParam.hiddenUi());
         this.setParamType(ImageSpecParameterType.TEXT);
         break;
       case "ProjectId":
@@ -189,8 +257,12 @@ public class ImageSpecParameter {
           this.setName(projectIdParam.name());
         }
         processDescriptions(
-            projectIdParam.description(), projectIdParam.helpText(), projectIdParam.example());
+            projectIdParam.groupName(),
+            projectIdParam.description(),
+            projectIdParam.helpText(),
+            projectIdParam.example());
         this.setOptional(projectIdParam.optional());
+        this.setHiddenUi(projectIdParam.hiddenUi());
         this.setParamType(ImageSpecParameterType.TEXT);
         break;
       case "Boolean":
@@ -199,9 +271,13 @@ public class ImageSpecParameter {
           this.setName(booleanParam.name());
         }
         processDescriptions(
-            booleanParam.description(), booleanParam.helpText(), booleanParam.example());
+            booleanParam.groupName(),
+            booleanParam.description(),
+            booleanParam.helpText(),
+            booleanParam.example());
         this.setOptional(booleanParam.optional());
-        this.setParamType(ImageSpecParameterType.TEXT);
+        this.setHiddenUi(booleanParam.hiddenUi());
+        this.setParamType(ImageSpecParameterType.BOOLEAN);
         break;
       case "Integer":
         TemplateParameter.Integer integerParam = (TemplateParameter.Integer) parameterAnnotation;
@@ -209,27 +285,70 @@ public class ImageSpecParameter {
           this.setName(integerParam.name());
         }
         processDescriptions(
-            integerParam.description(), integerParam.helpText(), integerParam.example());
+            integerParam.groupName(),
+            integerParam.description(),
+            integerParam.helpText(),
+            integerParam.example());
         this.setOptional(integerParam.optional());
-        this.setParamType(ImageSpecParameterType.TEXT);
+        this.setHiddenUi(integerParam.hiddenUi());
+        this.setParamType(ImageSpecParameterType.NUMBER);
         break;
       case "Long":
         TemplateParameter.Long longParam = (TemplateParameter.Long) parameterAnnotation;
         if (!longParam.name().isEmpty()) {
           this.setName(longParam.name());
         }
-        processDescriptions(longParam.description(), longParam.helpText(), longParam.example());
+        processDescriptions(
+            longParam.groupName(),
+            longParam.description(),
+            longParam.helpText(),
+            longParam.example());
         this.setOptional(longParam.optional());
-        this.setParamType(ImageSpecParameterType.TEXT);
+        this.setHiddenUi(longParam.hiddenUi());
+        this.setParamType(ImageSpecParameterType.NUMBER);
+        break;
+      case "Float":
+        TemplateParameter.Float floatParam = (TemplateParameter.Float) parameterAnnotation;
+        if (!floatParam.name().isEmpty()) {
+          this.setName(floatParam.name());
+        }
+        processDescriptions(
+            floatParam.groupName(),
+            floatParam.description(),
+            floatParam.helpText(),
+            floatParam.example());
+        this.setOptional(floatParam.optional());
+        this.setHiddenUi(floatParam.hiddenUi());
+        this.setParamType(ImageSpecParameterType.NUMBER);
+        break;
+      case "Double":
+        TemplateParameter.Double doubleParam = (TemplateParameter.Double) parameterAnnotation;
+        if (!doubleParam.name().isEmpty()) {
+          this.setName(doubleParam.name());
+        }
+        processDescriptions(
+            doubleParam.groupName(),
+            doubleParam.description(),
+            doubleParam.helpText(),
+            doubleParam.example());
+        this.setOptional(doubleParam.optional());
+        this.setHiddenUi(doubleParam.hiddenUi());
+        this.setParamType(ImageSpecParameterType.NUMBER);
         break;
       case "Enum":
         TemplateParameter.Enum enumParam = (TemplateParameter.Enum) parameterAnnotation;
         if (!enumParam.name().isEmpty()) {
           this.setName(enumParam.name());
         }
-        processDescriptions(enumParam.description(), enumParam.helpText(), enumParam.example());
+        processDescriptions(
+            enumParam.groupName(),
+            enumParam.description(),
+            enumParam.helpText(),
+            enumParam.example());
         this.setOptional(enumParam.optional());
-        this.setParamType(ImageSpecParameterType.TEXT);
+        this.setHiddenUi(enumParam.hiddenUi());
+        this.setParamType(ImageSpecParameterType.ENUM);
+        this.setEnumOptions(buildEnumOptions(enumParam));
         break;
       case "DateTime":
         TemplateParameter.DateTime dateTimeParam = (TemplateParameter.DateTime) parameterAnnotation;
@@ -237,8 +356,12 @@ public class ImageSpecParameter {
           this.setName(dateTimeParam.name());
         }
         processDescriptions(
-            dateTimeParam.description(), dateTimeParam.helpText(), dateTimeParam.example());
+            dateTimeParam.groupName(),
+            dateTimeParam.description(),
+            dateTimeParam.helpText(),
+            dateTimeParam.example());
         this.setOptional(dateTimeParam.optional());
+        this.setHiddenUi(dateTimeParam.hiddenUi());
         this.setParamType(ImageSpecParameterType.TEXT);
         break;
       case "BigQueryTable":
@@ -248,10 +371,12 @@ public class ImageSpecParameter {
           this.setName(bigQueryTableParam.name());
         }
         processDescriptions(
+            bigQueryTableParam.groupName(),
             bigQueryTableParam.description(),
             bigQueryTableParam.helpText(),
             bigQueryTableParam.example());
         this.setOptional(bigQueryTableParam.optional());
+        this.setHiddenUi(bigQueryTableParam.hiddenUi());
         this.setParamType(ImageSpecParameterType.BIGQUERY_TABLE);
         break;
       case "KmsEncryptionKey":
@@ -261,10 +386,12 @@ public class ImageSpecParameter {
           this.setName(kmsEncryptionKeyParam.name());
         }
         processDescriptions(
+            kmsEncryptionKeyParam.groupName(),
             kmsEncryptionKeyParam.description(),
             kmsEncryptionKeyParam.helpText(),
             kmsEncryptionKeyParam.example());
         this.setOptional(kmsEncryptionKeyParam.optional());
+        this.setHiddenUi(kmsEncryptionKeyParam.hiddenUi());
         this.setParamType(ImageSpecParameterType.TEXT);
         break;
       case "Duration":
@@ -273,8 +400,12 @@ public class ImageSpecParameter {
           this.setName(durationParam.name());
         }
         processDescriptions(
-            durationParam.description(), durationParam.helpText(), durationParam.example());
+            durationParam.groupName(),
+            durationParam.description(),
+            durationParam.helpText(),
+            durationParam.example());
         this.setOptional(durationParam.optional());
+        this.setHiddenUi(durationParam.hiddenUi());
         this.setParamType(ImageSpecParameterType.TEXT);
         break;
       default:
@@ -283,7 +414,22 @@ public class ImageSpecParameter {
     this.setRegexes(MetadataUtils.getRegexes(parameterAnnotation));
   }
 
-  protected void processDescriptions(String description, String helpText, String example) {
+  private static List<ImageSpecParameterEnumOption> buildEnumOptions(
+      TemplateParameter.Enum enumParam) {
+    return Arrays.stream(enumParam.enumOptions())
+        .map(
+            option ->
+                new ImageSpecParameterEnumOption(
+                    option.value(), option.label(), option.description()))
+        .collect(Collectors.toList());
+  }
+
+  protected void processDescriptions(
+      String groupName, String description, String helpText, String example) {
+
+    if (StringUtils.isNotEmpty(groupName)) {
+      this.setGroupName(groupName);
+    }
 
     if (description != null) {
       this.setLabel(description);

@@ -29,6 +29,7 @@ import org.apache.beam.sdk.values.PCollection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/** DeserializeValidationConfigurations. */
 public class DeserializeValidationConfigurations
     extends PTransform<PCollection<ReadableFile>, PCollection<KV<String, JsonNode>>> {
 
@@ -36,38 +37,47 @@ public class DeserializeValidationConfigurations
   private static final Logger LOG =
       LoggerFactory.getLogger(DeserializeValidationConfigurations.class);
 
+  private static class DeserializeValidationConfigurationsFn
+      extends InferableFunction<ReadableFile, KV<String, JsonNode>> {
+
+    private final ObjectMapper objectMapper;
+
+    public DeserializeValidationConfigurationsFn() {
+      objectMapper = new ObjectMapper(new YAMLFactory());
+    }
+
+    public static DeserializeValidationConfigurationsFn create() {
+      return new DeserializeValidationConfigurationsFn();
+    }
+
+    @Override
+    public KV<String, JsonNode> apply(ReadableFile file) {
+      JsonNode configuration = null;
+      try {
+        configuration = objectMapper.readValue(file.readFullyAsUTF8String(), JsonNode.class);
+      } catch (JsonProcessingException ex) {
+        throw new RuntimeException(
+            "Error deserializing YAML validation configuration file: "
+                + file.getMetadata().resourceId().toString()
+                + ".",
+            ex);
+      } catch (IOException ex) {
+        throw new RuntimeException(
+            "Error reading YAML validation configuration file: "
+                + file.getMetadata().resourceId().toString()
+                + ".",
+            ex);
+      }
+      return KV.of(file.getMetadata().resourceId().toString(), configuration);
+    }
+  }
+
   public static DeserializeValidationConfigurations create() {
     return new DeserializeValidationConfigurations();
   }
 
   @Override
   public PCollection<KV<String, JsonNode>> expand(PCollection<ReadableFile> files) {
-    return files.apply(
-        MapElements.via(
-            new InferableFunction<ReadableFile, KV<String, JsonNode>>() {
-              @Override
-              public KV<String, JsonNode> apply(ReadableFile file) {
-                ObjectMapper configurationObjectMapper = new ObjectMapper(new YAMLFactory());
-                JsonNode configuration = null;
-                try {
-                  configuration =
-                      configurationObjectMapper.readValue(
-                          file.readFullyAsUTF8String(), JsonNode.class);
-                } catch (JsonProcessingException ex) {
-                  throw new RuntimeException(
-                      "Error deserializing YAML validation configuration file: "
-                          + file.getMetadata().resourceId().toString()
-                          + ".",
-                      ex);
-                } catch (IOException ex) {
-                  throw new RuntimeException(
-                      "Error reading YAML validation configuration file: "
-                          + file.getMetadata().resourceId().toString()
-                          + ".",
-                      ex);
-                }
-                return KV.of(file.getMetadata().resourceId().toString(), configuration);
-              }
-            }));
+    return files.apply(MapElements.via(DeserializeValidationConfigurationsFn.create()));
   }
 }

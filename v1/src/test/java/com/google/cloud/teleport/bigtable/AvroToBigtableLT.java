@@ -15,25 +15,12 @@
  */
 package com.google.cloud.teleport.bigtable;
 
-import static com.google.cloud.teleport.it.artifacts.ArtifactUtils.createStorageClient;
-import static com.google.cloud.teleport.it.artifacts.ArtifactUtils.getFullGcsPath;
-import static com.google.cloud.teleport.it.bigtable.BigtableResourceManagerUtils.generateTableId;
-import static com.google.cloud.teleport.it.matchers.TemplateAsserts.assertThatPipeline;
-import static com.google.cloud.teleport.it.matchers.TemplateAsserts.assertThatResult;
 import static com.google.common.truth.Truth.assertThat;
+import static org.apache.beam.it.gcp.artifacts.utils.ArtifactUtils.getFullGcsPath;
+import static org.apache.beam.it.gcp.bigtable.BigtableResourceManagerUtils.generateTableId;
+import static org.apache.beam.it.truthmatchers.PipelineAsserts.assertThatPipeline;
+import static org.apache.beam.it.truthmatchers.PipelineAsserts.assertThatResult;
 
-import com.google.cloud.storage.Storage;
-import com.google.cloud.teleport.it.DataGenerator;
-import com.google.cloud.teleport.it.TemplateLoadTestBase;
-import com.google.cloud.teleport.it.TestProperties;
-import com.google.cloud.teleport.it.artifacts.ArtifactClient;
-import com.google.cloud.teleport.it.artifacts.GcsArtifactClient;
-import com.google.cloud.teleport.it.bigtable.BigtableResourceManager;
-import com.google.cloud.teleport.it.bigtable.DefaultBigtableResourceManager;
-import com.google.cloud.teleport.it.common.ResourceManagerUtils;
-import com.google.cloud.teleport.it.launcher.PipelineLauncher.LaunchConfig;
-import com.google.cloud.teleport.it.launcher.PipelineLauncher.LaunchInfo;
-import com.google.cloud.teleport.it.launcher.PipelineOperator.Result;
 import com.google.cloud.teleport.metadata.TemplateLoadTest;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableList;
@@ -42,13 +29,25 @@ import java.io.IOException;
 import java.text.ParseException;
 import java.time.Duration;
 import java.util.function.Function;
+import org.apache.beam.it.common.PipelineLauncher.LaunchConfig;
+import org.apache.beam.it.common.PipelineLauncher.LaunchInfo;
+import org.apache.beam.it.common.PipelineOperator.Result;
+import org.apache.beam.it.common.TestProperties;
+import org.apache.beam.it.common.utils.ResourceManagerUtils;
+import org.apache.beam.it.gcp.TemplateLoadTestBase;
+import org.apache.beam.it.gcp.artifacts.ArtifactClient;
+import org.apache.beam.it.gcp.bigtable.BigtableResourceManager;
+import org.apache.beam.it.gcp.datagenerator.DataGenerator;
+import org.apache.beam.it.gcp.storage.GcsResourceManager;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
 /** Performance tests for {@link AvroToBigtable GCS Avro to Bigtable} template. */
+@Category(TemplateLoadTest.class)
 @TemplateLoadTest(AvroToBigtable.class)
 @RunWith(JUnit4.class)
 public class AvroToBigtableLT extends TemplateLoadTestBase {
@@ -59,10 +58,8 @@ public class AvroToBigtableLT extends TemplateLoadTestBase {
   private static final String TEST_ROOT_DIR = AvroToBigtableLT.class.getSimpleName().toLowerCase();
   // 56,000,000 messages of the given schema make up approximately 10GB
   private static final String NUM_MESSAGES = "56000000";
-  private static final String INPUT_PCOLLECTION =
-      "Read from Avro/Read/ParDo(BoundedSourceAsSDFWrapper)/ParMultiDo(BoundedSourceAsSDFWrapper).out0";
-  private static final String OUTPUT_PCOLLECTION =
-      "Transform to Bigtable/ParMultiDo(AvroToBigtable).out0";
+  private static final String INPUT_PCOLLECTION = "Read from Avro/Read.out0";
+  private static final String OUTPUT_PCOLLECTION = "Transform to Bigtable.out0";
   private static BigtableResourceManager bigtableResourceManager;
   private static ArtifactClient gcsClient;
   private static String generatorSchemaPath;
@@ -71,9 +68,9 @@ public class AvroToBigtableLT extends TemplateLoadTestBase {
   @Before
   public void setup() throws IOException {
     // Set up resource managers
-    bigtableResourceManager = DefaultBigtableResourceManager.builder(testName, PROJECT).build();
-    Storage storageClient = createStorageClient(CREDENTIALS);
-    gcsClient = GcsArtifactClient.builder(storageClient, ARTIFACT_BUCKET, TEST_ROOT_DIR).build();
+    bigtableResourceManager =
+        BigtableResourceManager.builder(testName, project, CREDENTIALS_PROVIDER).build();
+    gcsClient = GcsResourceManager.builder(ARTIFACT_BUCKET, TEST_ROOT_DIR, CREDENTIALS).build();
     // upload schema files and save path
     generatorSchemaPath =
         getFullGcsPath(
@@ -81,7 +78,7 @@ public class AvroToBigtableLT extends TemplateLoadTestBase {
             gcsClient
                 .uploadArtifact(
                     "input/schema.json",
-                    Resources.getResource("AvroToBigtablePerformanceIT/schema.json").getPath())
+                    Resources.getResource("AvroToBigtableLT/schema.json").getPath())
                 .name());
     avroSchemaPath =
         getFullGcsPath(
@@ -94,16 +91,22 @@ public class AvroToBigtableLT extends TemplateLoadTestBase {
   }
 
   @After
-  public void teardown() {
+  public void tearDown() {
     ResourceManagerUtils.cleanResources(bigtableResourceManager, gcsClient);
   }
 
   @Test
   public void testBacklog10gb() throws IOException, ParseException, InterruptedException {
-    testBacklog10gb(Function.identity());
+    testBacklog(this::disableRunnerV2);
   }
 
-  public void testBacklog10gb(Function<LaunchConfig.Builder, LaunchConfig.Builder> paramsAdder)
+  @Test
+  public void testBacklog10gbUsingRunnerV2()
+      throws IOException, ParseException, InterruptedException {
+    testBacklog(this::enableRunnerV2);
+  }
+
+  public void testBacklog(Function<LaunchConfig.Builder, LaunchConfig.Builder> paramsAdder)
       throws IOException, ParseException, InterruptedException {
     // Arrange
     String tableId = generateTableId(testName);
@@ -127,21 +130,22 @@ public class AvroToBigtableLT extends TemplateLoadTestBase {
         paramsAdder
             .apply(
                 LaunchConfig.builder(testName, SPEC_PATH)
-                    .addParameter("bigtableProjectId", PROJECT)
+                    .addParameter("bigtableProjectId", project)
                     .addParameter("bigtableInstanceId", bigtableResourceManager.getInstanceId())
                     .addParameter("bigtableTableId", tableId)
                     .addParameter("inputFilePattern", getTestMethodDirPath() + "/*"))
             .build();
 
     // Act
-    LaunchInfo info = pipelineLauncher.launch(PROJECT, REGION, options);
+    LaunchInfo info = pipelineLauncher.launch(project, region, options);
     assertThatPipeline(info).isRunning();
     Result result = pipelineOperator.waitUntilDone(createConfig(info, Duration.ofMinutes(60)));
 
     // Assert
     assertThatResult(result).isLaunchFinished();
     // check to see if messages reached the output bigtable table
-    assertThat(bigtableResourceManager.readTable(tableId)).isNotEmpty();
+    // TODO(pranavbhandari): Check if there is a way to make this assertion stronger.
+    assertThat(bigtableResourceManager.readTable(tableId, 5L)).isNotEmpty();
 
     // export results
     exportMetricsToBigQuery(info, getMetrics(info, INPUT_PCOLLECTION, OUTPUT_PCOLLECTION));

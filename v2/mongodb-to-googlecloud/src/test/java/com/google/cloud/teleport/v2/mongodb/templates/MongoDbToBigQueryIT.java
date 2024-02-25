@@ -15,8 +15,8 @@
  */
 package com.google.cloud.teleport.v2.mongodb.templates;
 
-import static com.google.cloud.teleport.it.matchers.TemplateAsserts.assertThatPipeline;
-import static com.google.cloud.teleport.it.matchers.TemplateAsserts.assertThatResult;
+import static org.apache.beam.it.truthmatchers.PipelineAsserts.assertThatPipeline;
+import static org.apache.beam.it.truthmatchers.PipelineAsserts.assertThatResult;
 import static org.junit.Assert.assertTrue;
 
 import com.google.cloud.bigquery.Field;
@@ -24,23 +24,22 @@ import com.google.cloud.bigquery.Schema;
 import com.google.cloud.bigquery.StandardSQLTypeName;
 import com.google.cloud.bigquery.TableId;
 import com.google.cloud.bigquery.TableResult;
-import com.google.cloud.teleport.it.TemplateTestBase;
-import com.google.cloud.teleport.it.TestProperties;
-import com.google.cloud.teleport.it.bigquery.BigQueryResourceManager;
-import com.google.cloud.teleport.it.bigquery.DefaultBigQueryResourceManager;
-import com.google.cloud.teleport.it.bigtable.DefaultBigtableResourceManager;
-import com.google.cloud.teleport.it.common.ResourceManagerUtils;
-import com.google.cloud.teleport.it.conditions.BigQueryRowsCheck;
-import com.google.cloud.teleport.it.launcher.PipelineLauncher.LaunchConfig;
-import com.google.cloud.teleport.it.launcher.PipelineLauncher.LaunchInfo;
-import com.google.cloud.teleport.it.launcher.PipelineOperator.Result;
-import com.google.cloud.teleport.it.mongodb.DefaultMongoDBResourceManager;
 import com.google.cloud.teleport.metadata.TemplateIntegrationTest;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.beam.it.common.PipelineLauncher.LaunchConfig;
+import org.apache.beam.it.common.PipelineLauncher.LaunchInfo;
+import org.apache.beam.it.common.PipelineOperator.Result;
+import org.apache.beam.it.common.TestProperties;
+import org.apache.beam.it.common.utils.ResourceManagerUtils;
+import org.apache.beam.it.gcp.TemplateTestBase;
+import org.apache.beam.it.gcp.bigquery.BigQueryResourceManager;
+import org.apache.beam.it.gcp.bigquery.conditions.BigQueryRowsCheck;
+import org.apache.beam.it.mongodb.MongoDBResourceManager;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.json.JSONObject;
@@ -50,9 +49,6 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.testcontainers.shaded.org.apache.commons.lang3.RandomStringUtils;
 
 /**
  * Integration test for {@link MongoDbToBigQuery} (MongoDB_to_BigQuery).
@@ -96,9 +92,6 @@ import org.testcontainers.shaded.org.apache.commons.lang3.RandomStringUtils;
 @TemplateIntegrationTest(MongoDbToBigQuery.class)
 @RunWith(JUnit4.class)
 public final class MongoDbToBigQueryIT extends TemplateTestBase {
-
-  private static final Logger LOG = LoggerFactory.getLogger(DefaultBigtableResourceManager.class);
-
   private static final String MONGO_URI = "mongoDbUri";
   private static final String MONGO_DB = "database";
   private static final String MONGO_COLLECTION = "collection";
@@ -107,16 +100,13 @@ public final class MongoDbToBigQueryIT extends TemplateTestBase {
 
   private static final String MONGO_DB_ID = "_id";
 
-  private DefaultMongoDBResourceManager mongoDbClient;
+  private MongoDBResourceManager mongoDbClient;
   private BigQueryResourceManager bigQueryClient;
 
   @Before
-  public void setup() throws IOException {
-    mongoDbClient = DefaultMongoDBResourceManager.builder(testName).setHost(HOST_IP).build();
-    bigQueryClient =
-        DefaultBigQueryResourceManager.builder(testName, PROJECT)
-            .setCredentials(credentials)
-            .build();
+  public void setup() {
+    mongoDbClient = MongoDBResourceManager.builder(testName).build();
+    bigQueryClient = BigQueryResourceManager.builder(testName, PROJECT, credentials).build();
   }
 
   @After
@@ -133,7 +123,7 @@ public final class MongoDbToBigQueryIT extends TemplateTestBase {
 
     String bqTable = testName;
     String udfFileName = "transform.js";
-    artifactClient.createArtifact(
+    gcsClient.createArtifact(
         "input/" + udfFileName,
         "function transform(inJson) {\n"
             + "    var outJson = JSON.parse(inJson);\n"
@@ -155,7 +145,7 @@ public final class MongoDbToBigQueryIT extends TemplateTestBase {
             .addParameter(MONGO_URI, mongoDbClient.getUri())
             .addParameter(MONGO_DB, mongoDbClient.getDatabaseName())
             .addParameter(MONGO_COLLECTION, collectionName)
-            .addParameter(BIGQUERY_TABLE, toTableSpec(table))
+            .addParameter(BIGQUERY_TABLE, toTableSpecLegacy(table))
             .addParameter(USER_OPTION, "FLATTEN")
             .addParameter("javascriptDocumentTransformGcsPath", getGcsPath("input/" + udfFileName))
             .addParameter("javascriptDocumentTransformFunctionName", "transform");
@@ -224,6 +214,7 @@ public final class MongoDbToBigQueryIT extends TemplateTestBase {
       mongoDocumentKeys.add(randomFieldName.toLowerCase());
     }
     mongoDocumentKeys.add("udf");
+    mongoDocumentKeys.add("nullonly");
 
     for (int i = 0; i < numDocuments; i++) {
       Document randomDocument = new Document().append(MONGO_DB_ID, new ObjectId());
@@ -233,6 +224,7 @@ public final class MongoDbToBigQueryIT extends TemplateTestBase {
             mongoDocumentKeys.get(j), RandomStringUtils.randomAlphanumeric(0, 20));
       }
       randomDocument.append("udf", "in");
+      randomDocument.append("nullonly", null);
 
       mongoDocuments.add(randomDocument);
     }

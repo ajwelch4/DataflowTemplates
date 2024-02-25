@@ -15,32 +15,31 @@
  */
 package com.google.cloud.teleport.v2.templates;
 
-import static com.google.cloud.teleport.it.TestProperties.getProperty;
-import static com.google.cloud.teleport.it.matchers.TemplateAsserts.assertThatArtifacts;
-import static com.google.cloud.teleport.it.matchers.TemplateAsserts.assertThatPipeline;
-import static com.google.cloud.teleport.it.matchers.TemplateAsserts.assertThatResult;
 import static com.google.common.truth.Truth.assertThat;
+import static org.apache.beam.it.common.TestProperties.getProperty;
+import static org.apache.beam.it.gcp.artifacts.matchers.ArtifactAsserts.assertThatArtifacts;
+import static org.apache.beam.it.truthmatchers.PipelineAsserts.assertThatPipeline;
+import static org.apache.beam.it.truthmatchers.PipelineAsserts.assertThatResult;
 
 import com.google.cloud.Tuple;
 import com.google.cloud.bigquery.InsertAllRequest.RowToInsert;
 import com.google.cloud.bigquery.Schema;
 import com.google.cloud.bigquery.TableId;
-import com.google.cloud.teleport.it.TemplateTestBase;
-import com.google.cloud.teleport.it.TestProperties;
-import com.google.cloud.teleport.it.artifacts.Artifact;
-import com.google.cloud.teleport.it.bigquery.BigQueryResourceManager;
-import com.google.cloud.teleport.it.bigquery.BigQueryTestUtils;
-import com.google.cloud.teleport.it.bigquery.DefaultBigQueryResourceManager;
-import com.google.cloud.teleport.it.common.ResourceManagerUtils;
-import com.google.cloud.teleport.it.launcher.PipelineLauncher.LaunchConfig;
-import com.google.cloud.teleport.it.launcher.PipelineLauncher.LaunchInfo;
-import com.google.cloud.teleport.it.launcher.PipelineOperator.Result;
 import com.google.cloud.teleport.metadata.SkipDirectRunnerTest;
 import com.google.cloud.teleport.metadata.TemplateIntegrationTest;
-import com.google.re2j.Pattern;
 import java.io.IOException;
 import java.util.List;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import org.apache.beam.it.common.PipelineLauncher.LaunchConfig;
+import org.apache.beam.it.common.PipelineLauncher.LaunchInfo;
+import org.apache.beam.it.common.PipelineOperator.Result;
+import org.apache.beam.it.common.TestProperties;
+import org.apache.beam.it.common.utils.ResourceManagerUtils;
+import org.apache.beam.it.gcp.TemplateTestBase;
+import org.apache.beam.it.gcp.artifacts.Artifact;
+import org.apache.beam.it.gcp.bigquery.BigQueryResourceManager;
+import org.apache.beam.it.gcp.bigquery.utils.BigQueryTestUtil;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -55,7 +54,7 @@ import org.junit.runners.JUnit4;
 @RunWith(JUnit4.class)
 public final class BigQueryToParquetIT extends TemplateTestBase {
 
-  private static BigQueryResourceManager bigQueryResourceManager;
+  private BigQueryResourceManager bigQueryResourceManager;
 
   // Define a set of parameters used to allow configuration of the test size being run.
   private static final String BIGQUERY_ID_COL = "test_id";
@@ -70,9 +69,7 @@ public final class BigQueryToParquetIT extends TemplateTestBase {
   @Before
   public void setup() {
     bigQueryResourceManager =
-        DefaultBigQueryResourceManager.builder(testName, PROJECT)
-            .setCredentials(credentials)
-            .build();
+        BigQueryResourceManager.builder(testName, PROJECT, credentials).build();
   }
 
   @After
@@ -84,7 +81,7 @@ public final class BigQueryToParquetIT extends TemplateTestBase {
   public void testBigQueryToParquet() throws IOException {
     // Arrange
     Tuple<Schema, List<RowToInsert>> generatedTable =
-        BigQueryTestUtils.generateBigQueryTable(
+        BigQueryTestUtil.generateBigQueryTable(
             BIGQUERY_ID_COL, BIGQUERY_NUM_ROWS, BIGQUERY_NUM_FIELDS, BIGQUERY_MAX_ENTRY_LENGTH);
     Schema bigQuerySchema = generatedTable.x();
     List<RowToInsert> bigQueryRows = generatedTable.y();
@@ -94,7 +91,7 @@ public final class BigQueryToParquetIT extends TemplateTestBase {
 
     LaunchConfig.Builder options =
         LaunchConfig.builder(testName, specPath)
-            .addParameter("tableRef", toTableSpec(table))
+            .addParameter("tableRef", toTableSpecLegacy(table))
             .addParameter("bucket", getGcsPath(testName))
             .addParameter("numShards", "5");
 

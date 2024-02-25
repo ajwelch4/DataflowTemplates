@@ -19,6 +19,7 @@ import com.google.api.services.bigquery.model.ErrorProto;
 import com.google.api.services.bigquery.model.TableDataInsertAllResponse.InsertErrors;
 import com.google.api.services.bigquery.model.TableReference;
 import java.util.List;
+import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryInsertError;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryInsertErrorCoder;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryOptions;
@@ -40,6 +41,7 @@ public final class BigQueryIOUtils {
   }
 
   public static void validateBQStorageApiOptionsStreaming(BigQueryOptions options) {
+    StreamingModeUtils.validateBQOptions(options.as(DataflowPipelineOptions.class));
     if (options.getUseStorageWriteApi()
         && !options.getUseStorageWriteApiAtLeastOnce()
         && (options.getNumStorageWriteApiStreams() < 1

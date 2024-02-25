@@ -15,12 +15,13 @@
  */
 package com.google.cloud.teleport.v2.elasticsearch.templates;
 
-import static com.google.cloud.teleport.it.PipelineUtils.createJobName;
-import static com.google.cloud.teleport.it.TestProperties.getProperty;
-import static com.google.cloud.teleport.it.matchers.TemplateAsserts.assertThatPipeline;
-import static com.google.cloud.teleport.it.matchers.TemplateAsserts.assertThatRecords;
-import static com.google.cloud.teleport.it.matchers.TemplateAsserts.assertThatResult;
 import static com.google.common.truth.Truth.assertThat;
+import static org.apache.beam.it.common.TestProperties.getProperty;
+import static org.apache.beam.it.common.utils.PipelineUtils.createJobName;
+import static org.apache.beam.it.gcp.bigquery.matchers.BigQueryAsserts.bigQueryRowsToRecords;
+import static org.apache.beam.it.truthmatchers.PipelineAsserts.assertThatPipeline;
+import static org.apache.beam.it.truthmatchers.PipelineAsserts.assertThatRecords;
+import static org.apache.beam.it.truthmatchers.PipelineAsserts.assertThatResult;
 
 import com.google.cloud.Tuple;
 import com.google.cloud.bigquery.Field;
@@ -28,22 +29,19 @@ import com.google.cloud.bigquery.InsertAllRequest.RowToInsert;
 import com.google.cloud.bigquery.Schema;
 import com.google.cloud.bigquery.StandardSQLTypeName;
 import com.google.cloud.bigquery.TableId;
-import com.google.cloud.teleport.it.TemplateTestBase;
-import com.google.cloud.teleport.it.TestProperties;
-import com.google.cloud.teleport.it.bigquery.BigQueryResourceManager;
-import com.google.cloud.teleport.it.bigquery.BigQueryTestUtils;
-import com.google.cloud.teleport.it.bigquery.DefaultBigQueryResourceManager;
-import com.google.cloud.teleport.it.common.ResourceManagerUtils;
-import com.google.cloud.teleport.it.elasticsearch.DefaultElasticsearchResourceManager;
-import com.google.cloud.teleport.it.elasticsearch.ElasticsearchResourceManager;
-import com.google.cloud.teleport.it.launcher.PipelineLauncher.LaunchConfig;
-import com.google.cloud.teleport.it.launcher.PipelineLauncher.LaunchInfo;
-import com.google.cloud.teleport.it.launcher.PipelineOperator.Result;
 import com.google.cloud.teleport.metadata.TemplateIntegrationTest;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+import org.apache.beam.it.common.PipelineLauncher.LaunchConfig;
+import org.apache.beam.it.common.PipelineLauncher.LaunchInfo;
+import org.apache.beam.it.common.PipelineOperator.Result;
+import org.apache.beam.it.common.TestProperties;
+import org.apache.beam.it.common.utils.ResourceManagerUtils;
+import org.apache.beam.it.elasticsearch.ElasticsearchResourceManager;
+import org.apache.beam.it.gcp.TemplateTestBase;
+import org.apache.beam.it.gcp.bigquery.BigQueryResourceManager;
+import org.apache.beam.it.gcp.bigquery.utils.BigQueryTestUtil;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -72,12 +70,8 @@ public final class BigQueryToElasticsearchIT extends TemplateTestBase {
 
   @Before
   public void setup() {
-    bigQueryClient =
-        DefaultBigQueryResourceManager.builder(testName, PROJECT)
-            .setCredentials(credentials)
-            .build();
-    elasticsearchResourceManager =
-        DefaultElasticsearchResourceManager.builder(testId).setHost(HOST_IP).build();
+    bigQueryClient = BigQueryResourceManager.builder(testName, PROJECT, credentials).build();
+    elasticsearchResourceManager = ElasticsearchResourceManager.builder(testId).build();
   }
 
   @After
@@ -89,7 +83,7 @@ public final class BigQueryToElasticsearchIT extends TemplateTestBase {
   public void testBigQueryToElasticsearch() throws IOException {
     // Arrange
     Tuple<Schema, List<RowToInsert>> generatedTable =
-        BigQueryTestUtils.generateBigQueryTable(
+        BigQueryTestUtil.generateBigQueryTable(
             BIGQUERY_ID_COL, BIGQUERY_NUM_ROWS, BIGQUERY_NUM_FIELDS, BIGQUERY_MAX_ENTRY_LENGTH);
     Schema bigQuerySchema = generatedTable.x();
     List<RowToInsert> bigQueryRows = generatedTable.y();
@@ -102,8 +96,8 @@ public final class BigQueryToElasticsearchIT extends TemplateTestBase {
     LaunchInfo info =
         launchTemplate(
             LaunchConfig.builder(testName, specPath)
-                .addParameter("inputTableSpec", toTableSpec(table))
-                .addParameter("outputDeadletterTable", toTableSpec(table) + "_dlq")
+                .addParameter("inputTableSpec", toTableSpecLegacy(table))
+                .addParameter("outputDeadletterTable", toTableSpecLegacy(table) + "_dlq")
                 .addParameter("connectionUrl", elasticsearchResourceManager.getUri())
                 .addParameter("index", indexName)
                 .addParameter("apiKey", "elastic"));
@@ -116,15 +110,14 @@ public final class BigQueryToElasticsearchIT extends TemplateTestBase {
 
     assertThat(elasticsearchResourceManager.count(indexName)).isEqualTo(20);
     assertThatRecords(elasticsearchResourceManager.fetchAll(indexName))
-        .hasRecordsUnordered(
-            bigQueryRows.stream().map(RowToInsert::getContent).collect(Collectors.toList()));
+        .hasRecordsUnordered(bigQueryRowsToRecords(bigQueryRows));
   }
 
   @Test
   public void testBigQueryToElasticsearchQuery() throws IOException {
     // Arrange
     Tuple<Schema, List<RowToInsert>> generatedTable =
-        BigQueryTestUtils.generateBigQueryTable(
+        BigQueryTestUtil.generateBigQueryTable(
             BIGQUERY_ID_COL, BIGQUERY_NUM_ROWS, BIGQUERY_NUM_FIELDS, BIGQUERY_MAX_ENTRY_LENGTH);
     Schema bigQuerySchema = generatedTable.x();
     List<RowToInsert> bigQueryRows = generatedTable.y();
@@ -137,11 +130,12 @@ public final class BigQueryToElasticsearchIT extends TemplateTestBase {
     LaunchInfo info =
         launchTemplate(
             LaunchConfig.builder(testName, specPath)
-                .addParameter("inputTableSpec", toTableSpec(table))
+                .addParameter("inputTableSpec", toTableSpecLegacy(table))
                 .addParameter(
-                    "query", "SELECT * FROM `" + toTableSpec(table).replace(':', '.') + "`")
-                .addParameter("outputDeadletterTable", toTableSpec(table) + "_dlq")
+                    "query", "SELECT * FROM `" + toTableSpecLegacy(table).replace(':', '.') + "`")
+                .addParameter("outputDeadletterTable", toTableSpecLegacy(table) + "_dlq")
                 .addParameter("connectionUrl", elasticsearchResourceManager.getUri())
+                .addParameter("disableCertificateValidation", "true")
                 .addParameter("index", indexName)
                 .addParameter("apiKey", "elastic"));
     assertThatPipeline(info).isRunning();
@@ -153,14 +147,13 @@ public final class BigQueryToElasticsearchIT extends TemplateTestBase {
 
     assertThat(elasticsearchResourceManager.count(indexName)).isEqualTo(20);
     assertThatRecords(elasticsearchResourceManager.fetchAll(indexName))
-        .hasRecordsUnordered(
-            bigQueryRows.stream().map(RowToInsert::getContent).collect(Collectors.toList()));
+        .hasRecordsUnordered(bigQueryRowsToRecords(bigQueryRows));
   }
 
   @Test
   public void testBigQueryToElasticsearchUdf() throws IOException {
     // Arrange
-    artifactClient.createArtifact(
+    gcsClient.createArtifact(
         "udf.js",
         "function uppercaseName(value) {\n"
             + "  const data = JSON.parse(value);\n"
@@ -184,8 +177,8 @@ public final class BigQueryToElasticsearchIT extends TemplateTestBase {
     LaunchInfo info =
         launchTemplate(
             LaunchConfig.builder(testName, specPath)
-                .addParameter("inputTableSpec", toTableSpec(table))
-                .addParameter("outputDeadletterTable", toTableSpec(table) + "_dlq")
+                .addParameter("inputTableSpec", toTableSpecLegacy(table))
+                .addParameter("outputDeadletterTable", toTableSpecLegacy(table) + "_dlq")
                 .addParameter("connectionUrl", elasticsearchResourceManager.getUri())
                 .addParameter("index", indexName)
                 .addParameter("apiKey", "elastic")

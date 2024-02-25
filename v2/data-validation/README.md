@@ -13,6 +13,7 @@
 gcloud auth login
 gcloud auth application-default login
 gcloud config set project data-validation-project
+gcloud auth configure-docker us-east1-docker.pkg.dev
 ```
 
 ## Infrastructure
@@ -70,6 +71,32 @@ mvn clean package -pl v2/data-validation -am \
 Adjust the parameters to the command below according to your own environment:
 
 ```shell
+PSO_DV_CONFIG_HOME="gs://data-validation-project-dataflow-pipeline-data/config" \
+    data-validation generate-table-partitions \
+        -sc my_bq_conn \
+        -tc my_bq_conn \
+        -tbls bigquery-public-data.new_york_citibike.citibike_stations \
+        --primary-keys station_id,name,short_name \
+        --hash '*' \
+        --config-dir "gs://data-validation-project-dataflow-pipeline-data/config/validations" \
+        --partition-num 10 \
+        --labels tag=test-run,owner=name \
+        --format table \
+        --filter-status fail
+
+PSO_DV_CONFIG_HOME="gs://data-validation-project-dataflow-pipeline-data/config" \
+    data-validation generate-table-partitions \
+        -sc my_bq_conn \
+        -tc my_bq_conn \
+        -tbls bigquery-public-data.chicago_taxi_trips.taxi_trips \
+        --primary-keys unique_key \
+        --hash '*' \
+        --config-dir "gs://data-validation-project-dataflow-pipeline-data/config/validations" \
+        --partition-num 10 \
+        --labels tag=test-run,owner=name \
+        --format table \
+        --filter-status fail
+
 gcloud dataflow flex-template run "data-validation-$(date +%s)" \
   --region="us-east1" \
   --service-account-email="dataflow-worker-sa@data-validation-project.iam.gserviceaccount.com" \
@@ -108,10 +135,8 @@ mvn clean verify -pl v2/data-validation -am -fae \
     -DserviceAccountEmail="dataflow-worker-sa@data-validation-project.iam.gserviceaccount.com" \
     -DadditionalExperiments="use_runner_v2" \
     -Dtest=DataValidationLT#testDataflow \
+    -DsdkContainerImage="us-east1-docker.pkg.dev/data-validation-project/data-validation/dataflow/data-validation-worker:latest" \
     -DconfigGcsLocation="gs://data-validation-project-dataflow-pipeline-data/config" \
-    -DsourceConnection="my_bq_conn" \
-    -DtargetConnection="my_bq_conn" \
-    -DpartitionCount="60" \
     -DresultsStagingGcsLocation="gs://data-validation-project-dataflow-pipeline-data/data" \
     -DfullyQualifiedResultsTableName="data-validation-project.load_test.results" \
     -DmachineType="n2-highmem-2" \
@@ -119,11 +144,24 @@ mvn clean verify -pl v2/data-validation -am -fae \
     -DmaxWorkers="100"
 ```
 
+## Static Analysis
+
+```shell
+mvn spotless:apply -pl v2/data-validation -am
+mvn checkstyle:check -pl v2/data-validation -am
+mvn verify -pl v2/data-validation -am
+```
+
 ## TODO
 
+- Rebase on main.
+- Update load test.
+- Comments/docs.
+- Move ObjectMapper out of ProcessElement in GenerateSourceAndTargetQueries
+
 - Package additional JDBC drivers and account for them in `getDataSourceConfiguration`.
-- Refactor
+    - Use enum instead of case?
+    - https://github.com/ajwelch4/DataflowTemplates/pull/2
 - Truncate results table after load tests.
 - Parameterize load tests.
 - Unit/integration tests.
-- Comments/docs.
